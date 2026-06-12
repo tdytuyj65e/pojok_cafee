@@ -2,7 +2,7 @@
 include "../koneksi.php";
 
 /* =========================
-   QUERY DATABASE (PAKAI SQL KAMU ASLI)
+   QUERY DATABASE
    ========================= */
 
 $q1 = mysqli_query($conn, "SELECT COALESCE(SUM(total),0) AS total FROM transactions");
@@ -16,6 +16,11 @@ $produk = mysqli_fetch_assoc($q3)['total'];
 
 $q4 = mysqli_query($conn, "SELECT COUNT(*) AS total FROM products WHERE stok <= stok_minimum");
 $stokMenipis = mysqli_fetch_assoc($q4)['total'];
+
+/* =========================
+   PRODUK TERBARU
+   ========================= */
+$q5 = mysqli_query($conn, "SELECT * FROM products ORDER BY id DESC LIMIT 6");
 ?>
 
 <!DOCTYPE html>
@@ -44,7 +49,7 @@ body {
 
 <body class="bg-[#fff8f5] font-sans">
 
-<!-- TOP BAR (TIDAK DIUBAH UI) -->
+<!-- TOP BAR -->
 <header class="fixed top-0 w-full h-[56px] z-50 bg-[#ad6126] text-white flex items-center justify-between px-4 shadow">
 
     <h1 class="font-bold text-lg">Pojok Kafe</h1>
@@ -62,7 +67,7 @@ body {
         <p class="text-[12px] text-gray-500">Dashboard penjualan hari ini</p>
     </section>
 
-    <!-- CARD GRID (UI TETAP) -->
+    <!-- CARD GRID -->
     <section class="grid grid-cols-2 gap-3">
 
         <!-- PENJUALAN -->
@@ -93,9 +98,68 @@ body {
 
     </section>
 
+
+    <!-- PRODUK VISUAL BESAR -->
+<!-- PRODUK VISUAL BESAR -->
+<section class="space-y-2">
+
+    <h3 class="font-semibold text-sm">Produk</h3>
+
+    <!-- WRAPPER SCROLL HORIZONTAL -->
+    <div class="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
+
+        <?php while ($p = mysqli_fetch_assoc($q5)) { ?>
+
+        <div class="flex-shrink-0 bg-surface rounded-xl overflow-hidden shadow-[0px_2px_12px_rgba(200,119,58,0.12)] border border-transparent hover:border-primary/20 transition-all active:scale-[0.98] w-full max-w-[220px]">
+
+            <!-- IMAGE AREA -->
+            <div class="aspect-square bg-primary-fixed-dim overflow-hidden relative">
+
+                <?php
+                    $img = !empty($p['foto'])
+                        ? "../uploads/".$p['foto']
+                        : "https://via.placeholder.com/300";
+                ?>
+
+                <img
+                    src="<?= $img ?>"
+                    class="w-full h-full object-cover"
+                    alt="<?= $p['nama_produk'] ?>"
+                />
+
+                <!-- STOCK BADGE -->
+                <div class="absolute top-2 right-2 bg-surface/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm">
+                    <span class="text-[10px] font-medium text-gray-800">
+                        Stok: <?= $p['stok'] ?>
+                    </span>
+                </div>
+
+            </div>
+
+            <!-- CONTENT -->
+            <div class="p-3 space-y-1">
+
+                <h3 class="text-sm font-semibold text-gray-800 truncate">
+                    <?= $p['nama_produk'] ?>
+                </h3>
+
+                <p class="text-sm font-bold text-[#8e4a0e]">
+                    Rp <?= number_format($p['harga'],0,',','.') ?>
+                </p>
+
+            </div>
+
+        </div>
+
+        <?php } ?>
+
+    </div>
+
+</section>
+
 </main>
 
-<!-- NAVBAR (FIX PATH ERROR) -->
+<!-- NAVBAR -->
 <?php include "navbar.php"; ?>
 
 </body>

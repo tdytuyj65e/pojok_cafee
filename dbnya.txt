@@ -83,3 +83,6 @@ CREATE TABLE stock_logs (
 
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
+
+ALTER TABLE products 
+ADD foto VARCHAR(255) NULL AFTER stok;
