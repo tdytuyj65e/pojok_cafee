@@ -30,13 +30,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error = "Akun tidak aktif!";
             } else {
 
-                // SESSION FIX
-                $_SESSION['user_id']  = $user['id'];
-                $_SESSION['nama']     = $user['nama_lengkap'];
-                $_SESSION['role_id']  = $user['role_id'];
-                $_SESSION['role']     = $user['role_name'];
+                // ================= SESSION FIX (PAKAI ROLE_ID SAJA) =================
+                $_SESSION['id'] = $user['id'];
+                $_SESSION['nama'] = $user['nama_lengkap'];
+                $_SESSION['role_id'] = $user['role_id'];
 
-                // REDIRECT FIX
+                // ================= REDIRECT =================
                 if ($user['role_id'] == 1) {
                     header("Location: ../owner/dashboard.php");
                 } else {
@@ -72,21 +71,7 @@ body{
     font-family:'Poppins',sans-serif;
     background:#FDF6EE;
 }
-
-.wave-container{
-    position:relative;
-    background:#C8773A;
-    height:260px;
-    overflow:hidden;
-}
-
-.form-card{
-    margin-top:-55px;
-    position:relative;
-    z-index:10;
-}
 </style>
-
 </head>
 <body class="min-h-screen">
 
@@ -109,13 +94,6 @@ body{
 
     </div>
 
-    <!-- Wave -->
-    <svg class="absolute bottom-0 w-full" viewBox="0 0 1440 180">
-        <path fill="#F8F1EB"
-        d="M0,96L80,101.3C160,107,320,117,480,117.3C640,117,800,107,960,96C1120,85,1280,75,1360,69.3L1440,64L1440,181L0,181Z">
-        </path>
-    </svg>
-
 </div>
 
 <!-- Login Card -->
@@ -128,7 +106,7 @@ body{
         </h2>
 
         <p class="text-gray-500 mt-1 mb-6">
-            Masuk untuk melanjutkan ke sistem kasir.
+            Masuk untuk melanjutkan sistem kasir.
         </p>
 
         <?php if(!empty($error)): ?>
@@ -144,12 +122,8 @@ body{
                     Username
                 </label>
 
-                <input
-                    type="text"
-                    name="username"
-                    required
-                    placeholder="Masukkan username"
-                    class="w-full p-3 border border-orange-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <input type="text" name="username" required
+                    class="w-full p-3 border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500">
             </div>
 
             <div class="mb-6">
@@ -157,34 +131,18 @@ body{
                     Password
                 </label>
 
-                <input
-                    type="password"
-                    name="password"
-                    required
-                    placeholder="Masukkan password"
-                    class="w-full p-3 border border-orange-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500">
+                <input type="password" name="password" required
+                    class="w-full p-3 border border-orange-200 rounded-xl focus:ring-2 focus:ring-orange-500">
             </div>
 
-            <button
-                type="submit"
-                class="w-full bg-[#D97732] hover:bg-[#C96A28] text-white py-3 rounded-xl font-semibold shadow-lg transition">
+            <button type="submit"
+                class="w-full bg-[#D97732] hover:bg-[#C96A28] text-white py-3 rounded-xl font-semibold">
 
                 MASUK
 
             </button>
 
         </form>
-
-        <div class="text-center mt-5">
-
-            <a href="register.php"
-               class="text-[#D97732] font-medium hover:underline">
-
-                Belum punya akun? Daftar
-
-            </a>
-
-        </div>
 
     </div>
 
@@ -196,4 +154,3 @@ body{
 
 </body>
 </html>
-```

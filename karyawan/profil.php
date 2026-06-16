@@ -13,76 +13,100 @@ if (!$user_id) {
 }
 
 /* =========================
+   AMBIL DATA USER (awal)
+========================= */
+$stmt = mysqli_prepare($conn, "
+    SELECT u.*, r.name AS role_name
+    FROM users u
+    JOIN roles r ON r.id = u.role_id
+    WHERE u.id = ?
+");
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+$user = mysqli_fetch_assoc($result);
+
+/* =========================
    HANDLE UPDATE PROFIL
 ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    $nama = mysqli_real_escape_string($conn, $_POST['nama_lengkap']);
-    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $nama = trim($_POST['nama_lengkap']);
+    $email = trim($_POST['email']);
     $password = $_POST['password'] ?? '';
 
-    /* FOTO */
+    /* ================= FOTO ================= */
     if (!empty($_FILES['foto']['name'])) {
 
         $uploadDir = "../uploads/";
 
-        if (!file_exists($uploadDir)) {
+        if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
 
         $ext = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
-
         $allowed = ['jpg', 'jpeg', 'png', 'webp'];
 
         if (in_array($ext, $allowed)) {
 
             $namaFile = "user_" . $user_id . "_" . time() . "." . $ext;
+            $target = $uploadDir . $namaFile;
 
-            if (move_uploaded_file(
-                $_FILES['foto']['tmp_name'],
-                $uploadDir . $namaFile
-            )) {
+            if (move_uploaded_file($_FILES['foto']['tmp_name'], $target)) {
 
-                mysqli_query(
-                    $conn,
-                    "UPDATE users SET foto='$namaFile' WHERE id='$user_id'"
-                );
+                $stmtFoto = mysqli_prepare($conn, "
+                    UPDATE users SET foto=? WHERE id=?
+                ");
+                mysqli_stmt_bind_param($stmtFoto, "si", $namaFile, $user_id);
+                mysqli_stmt_execute($stmtFoto);
             }
         }
     }
 
-    /* PASSWORD */
-    $pass_sql = "";
-
+    /* ================= PASSWORD ================= */
     if (!empty($password)) {
+
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $pass_sql = ", password='$hash'";
+
+        $stmtPass = mysqli_prepare($conn, "
+            UPDATE users SET password=? WHERE id=?
+        ");
+        mysqli_stmt_bind_param($stmtPass, "si", $hash, $user_id);
+        mysqli_stmt_execute($stmtPass);
     }
 
-    /* UPDATE DATA */
-    mysqli_query($conn, "
+    /* ================= UPDATE DATA UTAMA ================= */
+    $stmtUpdate = mysqli_prepare($conn, "
         UPDATE users
-        SET nama_lengkap='$nama',
-            email='$email'
-            $pass_sql
-        WHERE id='$user_id'
+        SET nama_lengkap = ?, email = ?
+        WHERE id = ?
     ");
+
+    mysqli_stmt_bind_param($stmtUpdate, "ssi", $nama, $email, $user_id);
+    mysqli_stmt_execute($stmtUpdate);
 
     header("Location: profil.php");
     exit;
 }
+
 /* =========================
-   AMBIL DATA USER
+   REFRESH DATA USER
 ========================= */
-$user = mysqli_fetch_assoc(mysqli_query($conn, "
-    SELECT u.*, r.name as role_name
+$stmt = mysqli_prepare($conn, "
+    SELECT u.*, r.name AS role_name
     FROM users u
     JOIN roles r ON r.id = u.role_id
-    WHERE u.id = '$user_id'
-"));
+    WHERE u.id = ?
+");
+mysqli_stmt_bind_param($stmt, "i", $user_id);
+mysqli_stmt_execute($stmt);
+$result = mysqli_stmt_get_result($stmt);
+$user = mysqli_fetch_assoc($result);
 
-$foto = !empty($user['foto']) &&
-        file_exists("../uploads/" . $user['foto'])
+/* =========================
+   FOTO DEFAULT / UPLOAD
+========================= */
+$foto = (!empty($user['foto']) && file_exists("../uploads/" . $user['foto']))
     ? "../uploads/" . $user['foto']
     : "https://ui-avatars.com/api/?name=" . urlencode($user['nama_lengkap']);
 ?>

@@ -2,17 +2,23 @@
 session_start();
 include "../koneksi.php";
 
-if (!isset($_SESSION['user_id'])) {
+/* =========================
+   CEK LOGIN (FIX SESSION)
+========================= */
+if (!isset($_SESSION['id'])) {
     header("Location: ../auth/login.php");
     exit;
 }
 
+/* =========================
+   CEK ROLE OWNER
+========================= */
 if ((int)$_SESSION['role_id'] !== 1) {
     header("Location: ../karyawan/dashboard.php");
     exit;
 }
 
-/* ==========================
+/* =========================
    STATISTIK
 ========================== */
 
@@ -35,7 +41,7 @@ WHERE stok <= stok_minimum
 ");
 $stok_menipis = mysqli_fetch_assoc($q5)['total'];
 
-/* ==========================
+/* =========================
    PRODUK TERLARIS
 ========================== */
 
@@ -50,7 +56,7 @@ ORDER BY total_terjual DESC
 LIMIT 5
 ");
 
-/* ==========================
+/* =========================
    STOK MENIPIS
 ========================== */
 
@@ -62,7 +68,7 @@ ORDER BY stok ASC
 LIMIT 5
 ");
 
-/* ==========================
+/* =========================
    TRANSAKSI TERBARU
 ========================== */
 
@@ -76,7 +82,7 @@ ORDER BY t.id DESC
 LIMIT 5
 ");
 
-/* ==========================
+/* =========================
    GRAFIK
 ========================== */
 
@@ -92,8 +98,7 @@ GROUP BY MONTH(tanggal)
 $bulan = [];
 $total = [];
 
-while($g = mysqli_fetch_assoc($grafik))
-{
+while($g = mysqli_fetch_assoc($grafik)) {
     $bulan[] = $g['bulan'];
     $total[] = $g['total'];
 }
@@ -220,32 +225,23 @@ body{
 
         </div>
 
-        <!-- 2 KOLOM -->
+        <!-- PRODUK & STOK -->
         <div class="grid lg:grid-cols-2 gap-6 mt-6">
 
             <!-- PRODUK TERLARIS -->
             <div class="bg-white rounded-3xl shadow p-6">
 
-                <h2 class="font-bold text-xl mb-5">
-                    🔥 Produk Terlaris
-                </h2>
+                <h2 class="font-bold text-xl mb-5">🔥 Produk Terlaris</h2>
 
                 <div class="space-y-3">
 
                 <?php while($d=mysqli_fetch_assoc($produk_terlaris)): ?>
-
-                    <div class="flex justify-between items-center bg-orange-50 p-4 rounded-xl">
-
-                        <div class="font-medium">
-                            <?= htmlspecialchars($d['nama_produk']) ?>
-                        </div>
-
+                    <div class="flex justify-between bg-orange-50 p-4 rounded-xl">
+                        <div><?= htmlspecialchars($d['nama_produk']) ?></div>
                         <div class="font-bold text-orange-600">
                             <?= $d['total_terjual'] ?> Terjual
                         </div>
-
                     </div>
-
                 <?php endwhile; ?>
 
                 </div>
@@ -255,30 +251,19 @@ body{
             <!-- STOK MENIPIS -->
             <div class="bg-white rounded-3xl shadow p-6">
 
-                <h2 class="font-bold text-xl mb-5">
-                    ⚠️ Stok Menipis
-                </h2>
+                <h2 class="font-bold text-xl mb-5">⚠️ Stok Menipis</h2>
 
                 <div class="space-y-3">
 
                 <?php while($s=mysqli_fetch_assoc($list_stok)): ?>
-
                     <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-xl">
-
                         <div class="flex justify-between">
-
-                            <span>
-                                <?= htmlspecialchars($s['nama_produk']) ?>
-                            </span>
-
+                            <span><?= htmlspecialchars($s['nama_produk']) ?></span>
                             <span class="font-bold text-red-600">
                                 <?= $s['stok'] ?>
                             </span>
-
                         </div>
-
                     </div>
-
                 <?php endwhile; ?>
 
                 </div>
@@ -287,62 +272,7 @@ body{
 
         </div>
 
-        <!-- TRANSAKSI TERBARU -->
-        <div class="bg-white rounded-3xl shadow mt-6 p-6">
-
-            <h2 class="font-bold text-xl mb-5">
-                🧾 Transaksi Terbaru
-            </h2>
-
-            <div class="overflow-x-auto">
-
-                <table class="w-full">
-
-                    <thead>
-                        <tr class="border-b">
-                            <th class="text-left py-3">Kode</th>
-                            <th class="text-left py-3">Kasir</th>
-                            <th class="text-left py-3">Total</th>
-                            <th class="text-left py-3">Tanggal</th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                    <?php while($t=mysqli_fetch_assoc($transaksi)): ?>
-
-                        <tr class="border-b hover:bg-gray-50">
-
-                            <td class="py-3">
-                                <?= $t['kode_transaksi'] ?>
-                            </td>
-
-                            <td class="py-3">
-                                <?= $t['nama_lengkap'] ?>
-                            </td>
-
-                            <td class="py-3 text-green-600 font-semibold">
-                                Rp <?= number_format($t['total'],0,',','.') ?>
-                            </td>
-
-                            <td class="py-3">
-                                <?= date('d M Y H:i', strtotime($t['tanggal'])) ?>
-                            </td>
-
-                        </tr>
-
-                    <?php endwhile; ?>
-
-                    </tbody>
-
-                </table>
-
-            </div>
-
-        </div>
-
     </div>
-
 </div>
 
 <script>

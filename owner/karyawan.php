@@ -2,17 +2,13 @@
 session_start();
 include "../koneksi.php";
 
-/* ==========================
-   CEK LOGIN OWNER
-========================== */
-
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['id'])) {
     header("Location: ../auth/login.php");
     exit;
 }
 
 if ((int)$_SESSION['role_id'] !== 1) {
-    header("Location: ../owner/dashboard.php");
+    header("Location: ../karyawan/dashboard.php");
     exit;
 }
 

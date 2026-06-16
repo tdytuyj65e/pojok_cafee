@@ -2,37 +2,55 @@
 session_start();
 include "../koneksi.php";
 
-if (!isset($_SESSION['user_id'])) {
+/* =========================
+   CEK LOGIN (FIX SESSION)
+========================= */
+$id = $_SESSION['id'] ?? null;
+
+if (!$id) {
     header("Location: ../auth/login.php");
     exit;
 }
 
-$id = $_SESSION['user_id'];
-
-$query = mysqli_query($conn,"
+/* =========================
+   AMBIL DATA USER (AMAN + PREPARED)
+========================= */
+$stmt = $conn->prepare("
 SELECT u.*, r.name AS role_name
 FROM users u
 LEFT JOIN roles r ON u.role_id = r.id
-WHERE u.id = '$id'
+WHERE u.id = ?
 LIMIT 1
 ");
 
-$user = mysqli_fetch_assoc($query);
+$stmt->bind_param("i", $id);
+$stmt->execute();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
 
-/* ==========================
+/* =========================
+   JIKA USER TIDAK ADA
+========================= */
+if (!$user) {
+    session_destroy();
+    header("Location: ../auth/login.php");
+    exit;
+}
+
+/* =========================
    UPDATE PROFIL
-========================== */
+========================= */
 if (isset($_POST['update_profil'])) {
 
-    $nama  = $_POST['nama_lengkap'];
-    $email = $_POST['email'];
+    $nama  = trim($_POST['nama_lengkap']);
+    $email = trim($_POST['email']);
 
     $fotoName = $user['foto'];
 
     if (!empty($_FILES['foto']['name'])) {
 
-        $ext = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
-        $fotoName = "user_" . time() . "." . $ext;
+        $ext = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
+        $fotoName = "user_" . $id . "_" . time() . "." . $ext;
 
         move_uploaded_file(
             $_FILES['foto']['tmp_name'],
@@ -53,9 +71,12 @@ if (isset($_POST['update_profil'])) {
     exit;
 }
 
-$foto = !empty($user['foto'])
+/* =========================
+   FOTO PROFILE (SAFE)
+========================= */
+$foto = (!empty($user['foto']) && file_exists("../uploads/" . $user['foto']))
     ? "../uploads/" . $user['foto']
-    : "https://ui-avatars.com/api/?name=".urlencode($user['nama_lengkap'])."&background=f97316&color=fff";
+    : "https://ui-avatars.com/api/?name=" . urlencode($user['nama_lengkap']) . "&background=f97316&color=fff";
 ?>
 
 <!DOCTYPE html>
@@ -81,140 +102,103 @@ function toggleEdit(){
 </script>
 
 </head>
+
 <body class="bg-slate-100">
 
 <?php include "navbar_owner.php"; ?>
 
-<div class="lg:ml-64 min-h-screen">
+<div class="lg:ml-64 min-h-screen p-4 sm:p-6">
 
-    <!-- HEADER ORANGE -->
-    <div class="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 shadow flex justify-between items-center">
+    <!-- HEADER -->
+    <div class="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-5 rounded-2xl shadow flex flex-col sm:flex-row justify-between gap-3">
 
         <div>
-            <h1 class="text-3xl font-bold">Profil Owner 👤</h1>
-            <p class="text-orange-100">Informasi akun pengguna</p>
+            <h1 class="text-2xl sm:text-3xl font-bold">Profil Owner 👤</h1>
+            <p class="text-orange-100 text-sm">Informasi akun pengguna</p>
         </div>
 
-        <!-- BUTTON EDIT -->
         <button onclick="toggleEdit()"
-                class="bg-white text-orange-600 px-5 py-2 rounded-xl font-semibold shadow">
+                class="bg-white text-orange-600 px-4 py-2 rounded-xl font-semibold w-full sm:w-auto">
             Edit Profil
         </button>
 
     </div>
 
     <!-- CONTENT -->
-    <div class="p-6">
+    <div class="mt-6 max-w-5xl mx-auto space-y-6">
 
-        <div class="max-w-5xl mx-auto">
+        <!-- CARD -->
+        <div class="bg-white rounded-3xl shadow p-6">
 
-            <!-- PROFILE CARD -->
-            <div class="bg-white rounded-3xl shadow-xl overflow-hidden">
+            <div class="flex flex-col md:flex-row items-center gap-6">
 
-                <div class="p-8">
+                <img src="<?= $foto ?>"
+                     class="w-32 h-32 sm:w-36 sm:h-36 rounded-full border-4 border-orange-200 object-cover">
 
-                    <div class="flex flex-col md:flex-row items-center gap-6">
+                <div class="text-center md:text-left">
 
-                        <img src="<?= $foto ?>"
-                             class="w-36 h-36 rounded-full border-4 border-orange-200 shadow-xl object-cover">
+                    <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">
+                        <?= htmlspecialchars($user['nama_lengkap']) ?>
+                    </h2>
 
-                        <div class="flex-1 text-center md:text-left">
+                    <p class="text-gray-500">
+                        @<?= htmlspecialchars($user['username']) ?>
+                    </p>
 
-                            <h2 class="text-3xl font-bold text-gray-800">
-                                <?= htmlspecialchars($user['nama_lengkap']) ?>
-                            </h2>
+                    <span class="inline-block mt-3 bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-sm font-semibold">
+                        <?= strtoupper($user['role_name']) ?>
+                    </span>
 
-                            <p class="text-gray-500">
-                                @<?= htmlspecialchars($user['username']) ?>
-                            </p>
-
-                            <div class="flex flex-wrap gap-2 mt-4 justify-center md:justify-start">
-
-                                <span class="bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-sm font-semibold">
-                                    <?= strtoupper($user['role_name']) ?>
-                                </span>
-
-                                <span class="bg-green-100 text-green-600 px-4 py-1 rounded-full text-sm font-semibold">
-                                    <?= ucfirst($user['status']) ?>
-                                </span>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-            </div>
-
-            <!-- INFO GRID -->
-            <div class="grid md:grid-cols-2 gap-6 mt-6">
-
-                <div class="bg-white rounded-3xl shadow p-6">
-                    <h3 class="text-xl font-bold mb-4">Informasi Akun</h3>
-
-                    <p><b>Nama:</b> <?= $user['nama_lengkap'] ?></p>
-                    <p><b>Username:</b> <?= $user['username'] ?></p>
-                    <p><b>Email:</b> <?= $user['email'] ?></p>
-                </div>
-
-                <div class="bg-white rounded-3xl shadow p-6">
-                    <h3 class="text-xl font-bold mb-4">Sistem</h3>
-
-                    <p><b>Role:</b> <?= $user['role_name'] ?></p>
-                    <p><b>Status:</b> <?= $user['status'] ?></p>
-                    <p><b>Bergabung:</b> <?= date('d M Y', strtotime($user['created_at'])) ?></p>
                 </div>
 
             </div>
 
-            <!-- ==========================
-                 FORM EDIT (HIDE / SHOW)
-            ========================== -->
-            <div id="formEdit" class="hidden mt-6 bg-white p-6 rounded-3xl shadow">
+        </div>
 
-                <h2 class="text-xl font-bold mb-4">Edit Profil</h2>
+        <!-- INFO -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                <form method="POST" enctype="multipart/form-data"
-                      class="grid md:grid-cols-2 gap-4">
-
-                    <div>
-                        <label class="text-sm">Nama Lengkap</label>
-                        <input type="text" name="nama_lengkap"
-                               value="<?= $user['nama_lengkap'] ?>"
-                               class="w-full border p-3 rounded-xl">
-                    </div>
-
-                    <div>
-                        <label class="text-sm">Email</label>
-                        <input type="email" name="email"
-                               value="<?= $user['email'] ?>"
-                               class="w-full border p-3 rounded-xl">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="text-sm">Foto</label>
-                        <input type="file" name="foto"
-                               class="w-full border p-3 rounded-xl">
-                    </div>
-
-                    <div class="md:col-span-2 flex gap-3">
-
-                        <button type="submit" name="update_profil"
-                                class="bg-orange-600 text-white px-5 py-3 rounded-xl">
-                            Simpan
-                        </button>
-
-                        <button type="button" onclick="toggleEdit()"
-                                class="bg-gray-500 text-white px-5 py-3 rounded-xl">
-                            Batal
-                        </button>
-
-                    </div>
-
-                </form>
-
+            <div class="bg-white rounded-2xl shadow p-5">
+                <h3 class="font-bold mb-3">Informasi Akun</h3>
+                <p><b>Nama:</b> <?= htmlspecialchars($user['nama_lengkap']) ?></p>
+                <p><b>Username:</b> <?= htmlspecialchars($user['username']) ?></p>
+                <p><b>Email:</b> <?= htmlspecialchars($user['email']) ?></p>
             </div>
+
+            <div class="bg-white rounded-2xl shadow p-5">
+                <h3 class="font-bold mb-3">Sistem</h3>
+                <p><b>Role:</b> <?= $user['role_name'] ?></p>
+                <p><b>Status:</b> <?= $user['status'] ?></p>
+                <p><b>Bergabung:</b> <?= date('d M Y', strtotime($user['created_at'])) ?></p>
+            </div>
+
+        </div>
+
+        <!-- FORM EDIT -->
+        <div id="formEdit" class="hidden bg-white rounded-2xl shadow p-5">
+
+            <h2 class="font-bold text-xl mb-4">Edit Profil</h2>
+
+            <form method="POST" enctype="multipart/form-data"
+                  class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <input type="text" name="nama_lengkap"
+                       value="<?= htmlspecialchars($user['nama_lengkap']) ?>"
+                       class="border p-3 rounded-xl w-full">
+
+                <input type="email" name="email"
+                       value="<?= htmlspecialchars($user['email']) ?>"
+                       class="border p-3 rounded-xl w-full">
+
+                <input type="file" name="foto"
+                       class="border p-3 rounded-xl w-full md:col-span-2">
+
+                <button type="submit" name="update_profil"
+                        class="bg-orange-600 text-white py-3 rounded-xl md:col-span-2">
+                    Simpan Perubahan
+                </button>
+
+            </form>
 
         </div>
 

@@ -21,7 +21,8 @@ if ($user_id) {
     ) {
         $fotoUser = "../uploads/".$user['foto'];
     } else {
-      $fotoUser = 'https://ui-avatars.com/api/?name=' . urlencode($user['nama_lengkap']);
+        $fotoUser = "https://ui-avatars.com/api/?name="
+            . urlencode($user['nama_lengkap']);
     }
 }
 
