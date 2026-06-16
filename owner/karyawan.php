@@ -164,13 +164,7 @@ body{
 
                 </form>
 
-                <a
-                    href="tambah_karyawan.php"
-                    class="bg-green-500 hover:bg-green-600 text-white px-5 py-3 rounded-xl">
 
-                    + Tambah Karyawan
-
-                </a>
 
             </div>
 

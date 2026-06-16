@@ -83,28 +83,17 @@ value="<?= $sampai ?>"
 class="w-full border rounded-xl p-3">
 </div>
 
-<div class="flex items-end">
-<button
-class="bg-orange-500 text-white px-6 py-3 rounded-xl w-full">
-Filter
-</button>
-</div>
-
 <div class="flex items-end gap-2">
 
-<a
-href="export_pdf.php?dari=<?= $dari ?>&sampai=<?= $sampai ?>"
-class="bg-red-500 text-white px-4 py-3 rounded-xl">
+    <button class="bg-orange-500 text-white px-3 py-2 rounded-xl w-full hover:bg-orange-600 transition">
+        Filter
+    </button>
 
-PDF
-</a>
-
-<a
-href="export_excel.php?dari=<?= $dari ?>&sampai=<?= $sampai ?>"
-class="bg-green-500 text-white px-4 py-3 rounded-xl">
-
-Excel
-</a>
+    <a
+        href="export_excel.php?dari=<?= $dari ?>&sampai=<?= $sampai ?>"
+        class="bg-green-500 text-white px-3 py-2 rounded-xl hover:bg-green-600 transition text-center">
+        Excel
+    </a>
 
 </div>
 

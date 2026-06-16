@@ -251,13 +251,7 @@ body{
 
                 </button>
 
-                <a
-                    href="../logout.php"
-                    class="block w-full text-center bg-red-500 hover:bg-red-600 text-white py-3 rounded-2xl font-semibold transition">
 
-                    Logout
-
-                </a>
 
             </div>
 

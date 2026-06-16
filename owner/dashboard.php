@@ -187,30 +187,25 @@ body{
 
         </div>
 
-        <!-- QUICK MENU -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+<!-- QUICK MENU -->
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4 mt-6">
 
-            <a href="produk.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
-                <div class="text-4xl">☕</div>
-                <p class="font-semibold mt-2">Produk</p>
-            </a>
+    <a href="produk.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
+        <div class="text-4xl">☕</div>
+        <p class="font-semibold mt-2">Produk</p>
+    </a>
 
-            <a href="kategori.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
-                <div class="text-4xl">📂</div>
-                <p class="font-semibold mt-2">Kategori</p>
-            </a>
+    <a href="karyawan.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
+        <div class="text-4xl">👨‍💼</div>
+        <p class="font-semibold mt-2">Karyawan</p>
+    </a>
 
-            <a href="karyawan.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
-                <div class="text-4xl">👨‍💼</div>
-                <p class="font-semibold mt-2">Karyawan</p>
-            </a>
+    <a href="laporan.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
+        <div class="text-4xl">📊</div>
+        <p class="font-semibold mt-2">Laporan</p>
+    </a>
 
-            <a href="laporan.php" class="bg-white rounded-2xl shadow p-5 text-center hover:shadow-lg transition">
-                <div class="text-4xl">📊</div>
-                <p class="font-semibold mt-2">Laporan</p>
-            </a>
-
-        </div>
+</div>
 
         <!-- GRAFIK -->
         <div class="bg-white rounded-3xl shadow mt-6 p-6">
