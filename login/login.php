@@ -1,4 +1,3 @@
-
 <?php
 session_start();
 include "../koneksi.php";
@@ -28,21 +27,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (password_verify($password, $user['password'])) {
 
             if ($user['status'] == 'nonaktif') {
-
                 $error = "Akun tidak aktif!";
-
             } else {
 
-                $_SESSION['id']   = $user['id'];
-                $_SESSION['nama'] = $user['nama_lengkap'];
-                $_SESSION['role'] = $user['role_name'];
+                // SESSION FIX
+                $_SESSION['user_id']  = $user['id'];
+                $_SESSION['nama']     = $user['nama_lengkap'];
+                $_SESSION['role_id']  = $user['role_id'];
+                $_SESSION['role']     = $user['role_name'];
 
-                if ($user['role_name'] == 'owner') {
+                // REDIRECT FIX
+                if ($user['role_id'] == 1) {
                     header("Location: ../owner/dashboard.php");
                 } else {
                     header("Location: ../karyawan/dashboard.php");
                 }
-
                 exit();
             }
 

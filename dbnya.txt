@@ -86,3 +86,6 @@ CREATE TABLE stock_logs (
 
 ALTER TABLE products 
 ADD foto VARCHAR(255) NULL AFTER stok;
+
+ALTER TABLE users
+ADD foto VARCHAR(255) NULL AFTER email;

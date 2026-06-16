@@ -212,8 +212,8 @@ for ($i = 0; $i < 7; $i++) {
     </div>
 
     <div class="flex gap-2">
-        <a href="?export=pdf" class="px-3 py-1 bg-red-500 text-white rounded">PDF</a>
-        <a href="?export=excel" class="px-3 py-1 bg-green-600 text-white rounded">Excel</a>
+        <a href="?export=pdf" class="px-3 py-1 bg-red-500 text-white rounded"></a>
+        <a href="?export=excel" class="px-3 py-1 bg-green-600 text-white rounded"></a>
     </div>
 </div>
 
@@ -302,6 +302,6 @@ foreach ($grafik_values as $i => $v):
 </div>
 
 </div>
-<?php include "navbar.php"; ?>
+<?php include "navbar_karyawan.php"; ?>
 </body>
 </html>

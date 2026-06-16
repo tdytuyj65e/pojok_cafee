@@ -302,6 +302,6 @@ while ($p = mysqli_fetch_assoc($q)) :
 </form>
 
 </main>
-<?php include "navbar.php"; ?>
+<?php include "navbar_karyawan.php"; ?>
 </body>
 </html>

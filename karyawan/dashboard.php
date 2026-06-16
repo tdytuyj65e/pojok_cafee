@@ -1,28 +1,51 @@
 <?php
+session_start();
 include "../koneksi.php";
 
-/* =========================
-   QUERY DATABASE
-   ========================= */
+$user_id = $_SESSION['id'] ?? null;
 
-$q1 = mysqli_query($conn, "SELECT COALESCE(SUM(total),0) AS total FROM transactions");
+$user = null;
+$fotoUser = "https://ui-avatars.com/api/?name=User";
+
+if ($user_id) {
+
+    $user = mysqli_fetch_assoc(mysqli_query($conn,"
+        SELECT *
+        FROM users
+        WHERE id='$user_id'
+    "));
+
+    if (
+        !empty($user['foto']) &&
+        file_exists("../uploads/".$user['foto'])
+    ) {
+        $fotoUser = "../uploads/".$user['foto'];
+    } else {
+      $fotoUser = 'https://ui-avatars.com/api/?name=' . urlencode($user['nama_lengkap']);
+    }
+}
+
+/* TOTAL PENJUALAN */
+$q1 = mysqli_query($conn,"
+    SELECT COALESCE(SUM(total),0) AS total
+    FROM transactions
+");
 $penjualan = mysqli_fetch_assoc($q1)['total'];
 
-$q2 = mysqli_query($conn, "SELECT COUNT(*) AS total FROM transactions");
+/* TOTAL TRANSAKSI */
+$q2 = mysqli_query($conn,"
+    SELECT COUNT(*) AS total
+    FROM transactions
+");
 $transaksi = mysqli_fetch_assoc($q2)['total'];
 
-$q3 = mysqli_query($conn, "SELECT COUNT(*) AS total FROM products");
-$produk = mysqli_fetch_assoc($q3)['total'];
-
-$q4 = mysqli_query($conn, "SELECT COUNT(*) AS total FROM products WHERE stok <= stok_minimum");
-$stokMenipis = mysqli_fetch_assoc($q4)['total'];
-
-/* =========================
-   PRODUK TERBARU
-   ========================= */
-$q5 = mysqli_query($conn, "SELECT * FROM products ORDER BY id DESC LIMIT 6");
+/* PRODUK */
+$q5 = mysqli_query($conn,"
+    SELECT *
+    FROM products
+    ORDER BY id DESC
+");
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -50,11 +73,21 @@ body {
 <body class="bg-[#fff8f5] font-sans">
 
 <!-- TOP BAR -->
-<header class="fixed top-0 w-full h-[56px] z-50 bg-[#ad6126] text-white flex items-center justify-between px-4 shadow">
+<header class="fixed top-0 w-full z-50 bg-[#ad6126] text-white h-[56px] shadow-md flex items-center justify-between px-4">
 
-    <h1 class="font-bold text-lg">Pojok Kafe</h1>
+    <!-- Left: Logo + Nama -->
+    <div class="flex items-center gap-3">
+        <img src="<?= $fotoUser ?>" class="w-8 h-8 rounded-full object-cover border border-white">
 
-    <span class="material-symbols-outlined">notifications</span>
+        <h1 class="font-bold text-lg">
+            Pojok Kafe
+        </h1>
+    </div>
+
+    <!-- Right: Notification -->
+    <span class="material-symbols-outlined cursor-pointer">
+        notifications
+    </span>
 
 </header>
 
@@ -160,7 +193,7 @@ body {
 </main>
 
 <!-- NAVBAR -->
-<?php include "navbar.php"; ?>
+<?php include "navbar_karyawan.php"; ?>
 
 </body>
 </html>

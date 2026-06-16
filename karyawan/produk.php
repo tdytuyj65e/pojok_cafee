@@ -346,7 +346,7 @@ $fotoUser = !empty($user['foto'])
   </div>
 </div>
 <!-- NAVBAR -->
-<?php include "navbar.php"; ?>
+<?php include "navbar_karyawan.php"; ?>
 
 <!-- ================= SCRIPT ================= -->
 <script>
