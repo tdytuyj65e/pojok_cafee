@@ -117,6 +117,8 @@ function pk_filterUrl($periode, $search, $extra = []) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Laporan | Pojok Kafe</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 
@@ -451,6 +453,12 @@ function pk_filterUrl($periode, $search, $extra = []) {
 <div id="pkNavbarSlot">
 <?php include "navbar_karyawan.php"; ?>
 </div>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
+</script>
 
 </body>
 </html>

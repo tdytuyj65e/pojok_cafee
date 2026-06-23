@@ -89,6 +89,8 @@ $growth = $prev_total > 0 ? (($total_penjualan - $prev_total) / $prev_total * 10
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Laporan Penjualan – Pojok Kafe</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#16a34a">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -469,6 +471,12 @@ new Chart(document.getElementById('chartHarian'), {
   }
 });
 <?php endif; ?>
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
 </script>
 
 </body>

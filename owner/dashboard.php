@@ -79,6 +79,8 @@ while ($g = mysqli_fetch_assoc($grafik)) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard – Pojok Kafe</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -457,6 +459,12 @@ new Chart(ctx, {
     }
   }
 });
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
 </script>
 
 </body>

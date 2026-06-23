@@ -110,15 +110,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit'
     header("Location: produk.php"); exit;
 }
 
-// Hapus Produk
 if (isset($_GET['hapus'])) {
     $id  = (int)$_GET['hapus'];
-    $row = $conn->query("SELECT nama_produk FROM products WHERE id = $id")->fetch_assoc();
-    if ($row) {
+
+    mysqli_begin_transaction($conn);
+
+    try {
+
+        // hapus relasi dulu
+        $conn->query("DELETE FROM stock_logs WHERE product_id = $id");
+        $conn->query("DELETE FROM transaction_details WHERE product_id = $id");
+
+        // baru hapus produk
         $conn->query("DELETE FROM products WHERE id = $id");
-        $_SESSION['success'] = "Produk <strong>{$row['nama_produk']}</strong> berhasil dihapus.";
+
+        mysqli_commit($conn);
+
+        $_SESSION['success'] = "Produk berhasil dihapus";
+
+    } catch (Exception $e) {
+
+        mysqli_rollback($conn);
+        $_SESSION['error'] = "Gagal hapus: " . $e->getMessage();
     }
-    header("Location: produk.php"); exit;
+
+    header("Location: produk.php");
+    exit;
 }
 
 /* ==========================
@@ -172,6 +189,8 @@ $tab = $_GET['tab'] ?? 'produk';
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Produk & Kategori – Pojok Kafe</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#16a34a">
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -419,12 +438,17 @@ $tab = $_GET['tab'] ?? 'produk';
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             Edit
           </button>
-          <a href="?hapus=<?= $p['id'] ?>"
-            onclick="return confirm('Yakin hapus produk ini?')"
-            class="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm transition">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/></svg>
-            Hapus
-          </a>
+<a href="#" 
+   onclick="confirmHapus(<?= $p['id'] ?>); return false;"
+   class="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm transition">
+  
+  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/>
+  </svg>
+
+  Hapus
+</a>
         </div>
       </div>
     </div>
@@ -840,6 +864,25 @@ $tab = $_GET['tab'] ?? 'produk';
   </div>
 </div>
 
+<div id="modal-hapus" class="fixed inset-0 hidden items-center justify-center bg-black/50 z-50">
+  <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+
+    <h2 class="text-lg font-bold text-red-600 mb-2">⚠️ Hapus Produk</h2>
+    <p class="text-gray-600 text-sm mb-5">
+      Produk yang dihapus tidak dapat dikembalikan. Apakah Anda yakin?
+    </p>
+
+    <div class="flex gap-3">
+      <button onclick="tutupHapus()" class="flex-1 py-2 rounded-xl border hover:bg-gray-100">
+        Batal
+      </button>
+      <a id="btn-hapus" href="#" class="flex-1 py-2 rounded-xl bg-red-500 text-white text-center hover:bg-red-600">
+        Ya, Hapus
+      </a>
+    </div>
+
+  </div>
+</div>
 
 <script>
 /* ===== Panel ===== */
@@ -914,6 +957,50 @@ function updateKatPreview(val) {
 function updateKatEditPreview(val) {
   const el = document.getElementById('kat-edit-icon');
   el.textContent = val.trim() ? val.trim().charAt(0).toUpperCase() : '?';
+}
+
+
+</script>
+<script>
+function bukaPanel(name) {
+  document.getElementById('panel-' + name).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function tutupPanel(name) {
+  document.getElementById('panel-' + name).classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function previewFoto(input, previewId, placeholderId) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById(previewId);
+    const ph  = document.getElementById(placeholderId);
+    img.src = e.target.result;
+    img.style.opacity = '1';
+    ph.style.display = 'none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+function confirmHapus(id) {
+  document.getElementById('btn-hapus').href = '?hapus=' + id;
+  document.getElementById('modal-hapus').classList.remove('hidden');
+  document.getElementById('modal-hapus').classList.add('flex');
+  document.body.style.overflow = 'hidden';
+}
+
+function tutupHapus() {
+  document.getElementById('modal-hapus').classList.add('hidden');
+  document.getElementById('modal-hapus').classList.remove('flex');
+  document.body.style.overflow = '';
+}
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
 }
 </script>
 

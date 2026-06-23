@@ -61,7 +61,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Login | Pojok Kafe</title>
-
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 <script src="https://cdn.tailwindcss.com"></script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -354,11 +355,6 @@ a:focus-visible, button:focus-visible, input:focus-visible{
             <div class="flex-1 divider-dotted"></div>
         </div>
 
-        <a href="register.php"
-            class="btn-register w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">
-            Daftar Akun Baru
-        </a>
-
         <div class="divider-dotted mt-7 pt-4">
             <p class="font-mono text-[10px] text-center text-[#C7A98A] tracking-widest">
                 * * * TERIMA KASIH * * *
@@ -396,6 +392,12 @@ loginForm.addEventListener('submit', () => {
     btnLabel.textContent = 'MEMPROSES...';
     submitBtn.insertAdjacentHTML('afterbegin', '<span class="spinner"></span>');
 });
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
 </script>
 
 </body>

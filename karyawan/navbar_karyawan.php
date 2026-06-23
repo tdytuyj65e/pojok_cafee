@@ -1,5 +1,6 @@
 <!-- navbar.php -->
-
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
 
 <nav class="fixed bottom-0 left-0 right-0 z-50 h-16 bg-white border-t border-gray-200 shadow-lg flex justify-around items-center">
@@ -126,4 +127,10 @@ modal.addEventListener('click', function(e) {
         closeLogoutModal();
     }
 });
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
 </script>

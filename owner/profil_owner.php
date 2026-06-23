@@ -86,6 +86,8 @@ $foto = (!empty($user['foto']) && file_exists("../uploads/" . $user['foto']))
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Profil Owner</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#16a34a">
 
 <script src="https://cdn.tailwindcss.com"></script>
 
@@ -205,6 +207,12 @@ function toggleEdit(){
     </div>
 
 </div>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
+</script>
 
 </body>
 </html>

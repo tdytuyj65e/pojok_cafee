@@ -1,7 +1,8 @@
 <?php
 $current_page = basename($_SERVER['PHP_SELF']);
 ?>
-
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#16a34a">
 <!-- SIDEBAR DESKTOP -->
 <aside class="hidden lg:flex lg:flex-col w-64 bg-white shadow-lg fixed h-screen">
 
@@ -100,3 +101,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 
 </nav>
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
+</script>

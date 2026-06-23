@@ -167,6 +167,8 @@ if ($totalBelanja > 0) {
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 
 <title>Keranjang | Pojok Kafe</title>
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
@@ -537,6 +539,12 @@ if (overlay) {
     overlay.addEventListener('click', e => {
         if (e.target === overlay) overlay.remove();
     });
+}
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
 }
 </script>
 

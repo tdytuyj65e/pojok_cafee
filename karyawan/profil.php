@@ -125,7 +125,8 @@ $initials = implode('', array_map(fn($w) => strtoupper($w[0]), array_slice(explo
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Profil Saya | Pojok Kafe</title>
-
+<link rel="manifest" href="/pojok_cafe/manifest.json">
+<meta name="theme-color" content="#22c55e">
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet"/>
@@ -597,5 +598,12 @@ $initials = implode('', array_map(fn($w) => strtoupper($w[0]), array_slice(explo
     });
   }, 3500);
 </script>
+
+<script>
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
+</script>
+
 </body>
 </html>
