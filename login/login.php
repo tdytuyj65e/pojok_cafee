@@ -203,6 +203,18 @@ body{
 .btn-submit:active{ transform: translateY(0); }
 .btn-submit:disabled{ opacity:0.75; cursor:not-allowed; transform:none; }
 
+.btn-register{
+    border:1.5px solid #F0DDC8;
+    color: var(--terracotta-dark);
+    background:#FFFBF6;
+    transition: all .18s ease;
+}
+.btn-register:hover{
+    border-color: var(--terracotta);
+    background:#fff;
+    box-shadow: 0 8px 18px -6px rgba(217,119,50,0.25);
+}
+
 .spinner{
     width:18px; height:18px;
     border:2.5px solid rgba(255,255,255,0.45);
@@ -334,6 +346,18 @@ a:focus-visible, button:focus-visible, input:focus-visible{
             </button>
 
         </form>
+
+        <!-- Tombol Register -->
+        <div class="flex items-center gap-3 my-5">
+            <div class="flex-1 divider-dotted"></div>
+            <span class="text-[11px] text-[#C7A98A] font-mono">ATAU</span>
+            <div class="flex-1 divider-dotted"></div>
+        </div>
+
+        <a href="register.php"
+            class="btn-register w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2">
+            Daftar Akun Baru
+        </a>
 
         <div class="divider-dotted mt-7 pt-4">
             <p class="font-mono text-[10px] text-center text-[#C7A98A] tracking-widest">
