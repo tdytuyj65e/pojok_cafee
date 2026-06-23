@@ -2,392 +2,427 @@
 session_start();
 include "../koneksi.php";
 
-/* =========================
-   DATA PRODUK
-   ========================= */
-$query = mysqli_query($conn, "SELECT * FROM products ORDER BY id DESC");
+/* ===== CEK LOGIN ===== */
+$user_id = $_SESSION['id'] ?? null;
+if (!$user_id) {
+    header("Location: ../auth/login.php");
+    exit;
+}
 
-/* =========================
-   TAMBAH PRODUK
-   ========================= */
+/* ===== TAMBAH PRODUK ===== */
 if (isset($_POST['tambah'])) {
 
-    $nama  = mysqli_real_escape_string($conn, $_POST['nama_produk']);
+    $nama  = mysqli_real_escape_string($conn, trim($_POST['nama_produk']));
     $harga = (int) $_POST['harga'];
     $stok  = (int) $_POST['stok'];
-
-    $foto = $_FILES['foto']['name'] ?? '';
-    $tmp  = $_FILES['foto']['tmp_name'] ?? '';
-
-    $folder = "../uploads/";
-
-    if (!is_dir($folder)) {
-        mkdir($folder, 0777, true);
-    }
+    $stok_min = (int) ($_POST['stok_minimum'] ?? 5);
 
     $newName = null;
-
-    if (!empty($foto) && $tmp != "") {
-
-        $ext = strtolower(pathinfo($foto, PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-
-        if (!in_array($ext, $allowed)) {
-            die("❌ Format gambar tidak valid!");
-        }
-
-        $newName = uniqid() . "_" . time() . "." . $ext;
-
-        if (!move_uploaded_file($tmp, $folder . $newName)) {
-            die("❌ Upload gagal!");
-        }
+    if (!empty($_FILES['foto']['name'])) {
+        $folder  = "../uploads/";
+        if (!is_dir($folder)) mkdir($folder, 0777, true);
+        $ext     = strtolower(pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg','jpeg','png','webp'];
+        if (in_array($ext, $allowed) && move_uploaded_file($_FILES['foto']['tmp_name'], $folder . ($newName = uniqid() . "_" . time() . "." . $ext)));
     }
 
-    $sql = "INSERT INTO products (nama_produk, harga, stok, foto)
-            VALUES ('$nama', $harga, $stok, " .
-            ($newName ? "'$newName'" : "NULL") . ")";
-
-    mysqli_query($conn, $sql);
+    $stmtP = mysqli_prepare($conn,
+        "INSERT INTO products (nama_produk, harga, stok, stok_minimum, foto) VALUES (?,?,?,?,?)"
+    );
+    mysqli_stmt_bind_param($stmtP, "siiss", $nama, $harga, $stok, $stok_min, $newName);
+    mysqli_stmt_execute($stmtP);
 
     header("Location: produk.php");
     exit;
 }
 
-/* =========================
-   ADD CART (POS)
-   ========================= */
+/* ===== HAPUS PRODUK ===== */
+if (isset($_POST['hapus_produk'])) {
+    $pid = (int) $_POST['pid'];
+    // Ambil nama foto dulu untuk dihapus dari disk
+    $r = mysqli_fetch_assoc(mysqli_query($conn, "SELECT foto FROM products WHERE id=$pid"));
+    if (!empty($r['foto']) && file_exists("../uploads/" . $r['foto'])) {
+        unlink("../uploads/" . $r['foto']);
+    }
+    mysqli_query($conn, "DELETE FROM products WHERE id=$pid");
+    header("Location: produk.php");
+    exit;
+}
+
+/* ===== ADD TO CART ===== */
 if (isset($_POST['add_cart'])) {
-
-    $id = $_POST['id'];
-
-    $q = mysqli_query($conn, "SELECT * FROM products WHERE id='$id'");
-    $p = mysqli_fetch_assoc($q);
+    $id = (int) $_POST['id'];
+    $stmtC = mysqli_prepare($conn, "SELECT * FROM products WHERE id=? AND stok > 0");
+    mysqli_stmt_bind_param($stmtC, "i", $id);
+    mysqli_stmt_execute($stmtC);
+    $p = mysqli_fetch_assoc(mysqli_stmt_get_result($stmtC));
 
     if ($p) {
-
         if (!isset($_SESSION['cart'][$id])) {
             $_SESSION['cart'][$id] = [
-                'id' => $p['id'],
-                'nama' => $p['nama_produk'],
-                'harga' => $p['harga'],
-                'qty' => 0
+                'id'    => $p['id'],
+                'nama'  => $p['nama_produk'],
+                'harga' => (float) $p['harga'],
+                'qty'   => 0,
             ];
         }
+        // Jangan melebihi stok
+        $stokMax = (int) $p['stok'];
+        if ($_SESSION['cart'][$id]['qty'] < $stokMax) {
+            $_SESSION['cart'][$id]['qty']++;
+            $_SESSION['cart'][$id]['subtotal'] = $_SESSION['cart'][$id]['qty'] * (float) $p['harga'];
+        }
+    }
 
-        $_SESSION['cart'][$id]['qty'] += 1;
-        $_SESSION['cart'][$id]['subtotal'] =
-            $_SESSION['cart'][$id]['qty'] * $p['harga'];
+    // Jika AJAX return JSON, jika POST biasa redirect ke transaksi
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+        header('Content-Type: application/json');
+        $total = array_sum(array_column($_SESSION['cart'], 'qty'));
+        echo json_encode(['cartCount' => $total, 'ok' => (bool) $p]);
+        exit;
     }
 
     header("Location: transaksi.php");
     exit;
 }
 
-/* =========================
-   USER
-   ========================= */
-$user = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM users LIMIT 1"));
+/* ===== DATA PRODUK ===== */
+$search    = trim($_GET['q'] ?? '');
+$kategori  = (int) ($_GET['cat'] ?? 0);
 
-$fotoUser = !empty($user['foto'])
+$sql = "SELECT p.*, c.nama_kategori FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE 1=1";
+if ($search !== '') $sql .= " AND p.nama_produk LIKE '%" . mysqli_real_escape_string($conn, $search) . "%'";
+if ($kategori > 0)  $sql .= " AND p.category_id = $kategori";
+$sql .= " ORDER BY p.id DESC";
+$query = mysqli_query($conn, $sql);
+
+// Kategori untuk filter
+$qKat = mysqli_query($conn, "SELECT * FROM categories ORDER BY nama_kategori ASC");
+
+/* ===== USER ===== */
+$stmtU = mysqli_prepare($conn, "SELECT * FROM users WHERE id=?");
+mysqli_stmt_bind_param($stmtU, "i", $user_id);
+mysqli_stmt_execute($stmtU);
+$user    = mysqli_fetch_assoc(mysqli_stmt_get_result($stmtU));
+$fotoUser = (!empty($user['foto']) && file_exists("../uploads/" . $user['foto']))
     ? "../uploads/" . $user['foto']
-    : "https://via.placeholder.com/100";
-?>
+    : "https://ui-avatars.com/api/?name=" . urlencode($user['nama_lengkap']) . "&background=8e4a0e&color=fff";
 
+/* ===== CART COUNT ===== */
+$cartCount = 0;
+if (!empty($_SESSION['cart'])) {
+    foreach ($_SESSION['cart'] as $c) $cartCount += $c['qty'];
+}
+?>
 <!DOCTYPE html>
-<html class="light" lang="en">
+<html lang="id">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-
-<title>Pojok Kafe POS</title>
-
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-
-<script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            "colors": {
-                "on-tertiary-fixed-variant": "#713700",
-                "tertiary-container": "#a9632c",
-                "inverse-surface": "#402c1f",
-                "on-primary-fixed-variant": "#723600",
-                "surface-container-lowest": "#ffffff",
-                "on-secondary": "#ffffff",
-                "on-secondary-fixed": "#281807",
-                "inverse-on-surface": "#ffede4",
-                "error": "#ba1a1a",
-                "on-secondary-fixed-variant": "#57432e",
-                "surface-dim": "#f5d3c0",
-                "on-primary-fixed": "#311400",
-                "on-primary": "#ffffff",
-                "primary-fixed-dim": "#ffb786",
-                "on-tertiary-container": "#fffbff",
-                "on-surface-variant": "#544339",
-                "on-surface": "#29170c",
-                "secondary-fixed-dim": "#dec1a6",
-                "on-error-container": "#93000a",
-                "tertiary": "#8b4b15",
-                "inverse-primary": "#ffb786",
-                "on-tertiary": "#ffffff",
-                "on-background": "#29170c",
-                "outline-variant": "#d9c2b5",
-                "surface-bright": "#fff8f5",
-                "secondary-container": "#fcddc1",
-                "primary": "#8e4a0e",
-                "surface-container": "#ffeadf",
-                "on-error": "#ffffff",
-                "surface": "#fff8f5",
-                "surface-container-highest": "#fedcc8",
-                "surface-container-high": "#ffe3d3",
-                "secondary-fixed": "#fcddc1",
-                "primary-container": "#ad6126",
-                "tertiary-fixed-dim": "#ffb784",
-                "background": "#fff8f5",
-                "on-tertiary-fixed": "#301400",
-                "error-container": "#ffdad6",
-                "on-secondary-container": "#77604a",
-                "surface-container-low": "#fff1ea",
-                "tertiary-fixed": "#ffdcc5",
-                "on-primary-container": "#fffbff",
-                "outline": "#867368",
-                "surface-variant": "#fedcc8",
-                "secondary": "#705a44",
-                "surface-tint": "#914c10",
-                "primary-fixed": "#ffdcc6"
-            },
-            "borderRadius": {
-                "DEFAULT": "0.25rem",
-                "lg": "0.5rem",
-                "xl": "0.75rem",
-                "full": "9999px"
-            },
-            "spacing": {
-                "xl": "32px",
-                "lg": "24px",
-                "xs": "4px",
-                "md": "16px",
-                "sm": "8px"
-            },
-            "fontFamily": {
-                "headline-md": ["Plus Jakarta Sans"],
-                "headline-lg": ["Plus Jakarta Sans"],
-                "button-text": ["Plus Jakarta Sans"],
-                "body-md": ["Plus Jakarta Sans"],
-                "label-md": ["Plus Jakarta Sans"]
-            },
-            "fontSize": {
-                "headline-md": ["18px", {"lineHeight": "24px", "fontWeight": "600"}],
-                "headline-lg": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
-                "button-text": ["14px", {"lineHeight": "20px", "fontWeight": "600"}],
-                "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
-                "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}]
-            }
-          },
-        },
-      }
-    </script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Produk | Pojok Kafe</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,500,1,0" rel="stylesheet"/>
 <style>
-        body {
-            background-color: #fff8f5;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .custom-shadow {
-            box-shadow: 0px 2px 12px rgba(200, 119, 58, 0.12);
-        }
-        .primary-shadow {
-            box-shadow: 0px 4px 12px rgba(200, 119, 58, 0.30);
-        }
-        .material-symbols-outlined {
-            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-    </style>
-<style>
-    body {
-      min-height: max(884px, 100dvh);
-    }
-  </style>
+* { font-family:'Plus Jakarta Sans',sans-serif; }
+.material-symbols-rounded { font-variation-settings:'FILL' 1,'wght' 500,'GRAD' 0,'opsz' 24; user-select:none; }
+body { background:#fff8f5; min-height:100dvh; }
 
+/* Header */
+.header-bg {
+    background:linear-gradient(135deg,#7c3a08 0%,#8e4a0e 40%,#a9632c 100%);
+    position:relative; overflow:hidden;
+}
+.header-bg::before {
+    content:''; position:absolute; width:180px; height:180px;
+    background:rgba(255,255,255,0.05); border-radius:50%;
+    top:-50px; right:-40px;
+}
+
+/* Cards */
+.product-card { transition:transform .12s ease, box-shadow .12s ease; }
+.product-card:active { transform:scale(0.97); }
+
+/* Input focus */
+.input-field:focus { outline:none; border-color:#8e4a0e; box-shadow:0 0 0 3px rgba(142,74,14,.1); }
+
+/* Filter chip */
+.filter-chip { transition:all .15s ease; }
+.filter-chip.active { background:#8e4a0e; color:#fff; border-color:#8e4a0e; }
+
+/* Add to cart button bounce */
+@keyframes bounce-once { 0%,100%{transform:scale(1)} 50%{transform:scale(0.85)} }
+.bounce { animation:bounce-once .2s ease; }
+
+/* Toast */
+@keyframes slideUp { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
+.toast { animation:slideUp .3s ease both; }
+</style>
 </head>
+<body class="pb-28">
 
-<body>
+<!-- ====== HEADER ====== -->
+<header class="header-bg text-white">
+  <div class="relative z-10 max-w-md mx-auto px-4 pt-10 pb-5">
 
-<!-- ================= HEADER ================= -->
-<header class="fixed top-0 w-full z-50 bg-primary-container text-white h-[56px] flex items-center justify-between px-4 shadow-md">
+    <div class="flex items-center justify-between mb-4">
+      <a href="dashboard.php" class="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 transition">
+        <span class="material-symbols-rounded text-xl">arrow_back</span>
+      </a>
+      <h1 class="font-extrabold text-lg">Pilih Produk</h1>
 
-  <div class="flex items-center gap-2">
-    <img src="<?= $fotoUser ?>" class="w-8 h-8 rounded-full object-cover border">
-    <h1 class="font-bold">Pojok Kafe</h1>
-  </div>
-
-  <span class="material-symbols-outlined">notifications</span>
-</header>
-
-<!-- ================= MAIN ================= -->
-<main class="pt-[72px] pb-[90px] px-4 space-y-4">
-
-<div class="flex justify-center items-center">
-  <h2 class="text-lg font-bold text-center w-full">
-    Manajemen Produk
-  </h2>
-</div>
-    
-  </div>
-
-  <!-- SEARCH -->
-<div class="flex justify-center gap-3">
-
-  <input class="h-[42px] w-[400px] px-3 text-sm rounded-xl border bg-white"
-  placeholder="Cari produk...">
-
-  <button onclick="openModal()"
-    class="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2">
-
-    <span class="material-symbols-outlined text-[18px]">add</span>
-
-  </button>
-
-</div>
-
-  <!-- FILTER -->
-  <div class="flex justify-center gap-2">
-    <button class="px-4 py-2 rounded-full bg-primary text-white">Semua</button>
-    <button class="px-4 py-2 rounded-full bg-white border">Minuman</button>
-    <button class="px-4 py-2 rounded-full bg-white border">Makanan</button>
-    
-  </div>
-
-  <!-- LIST PRODUK -->
-  <div class="space-y-3">
-
-    <?php while($row = mysqli_fetch_assoc($query)) : ?>
-
-    <form method="POST" action="transaksi.php"
-          class="bg-white p-3 rounded-xl flex items-center gap-3 shadow hover:scale-[1.01] transition">
-
-      <input type="hidden" name="id" value="<?= $row['id'] ?>">
-
-      <button type="submit" name="add_cart"
-              class="flex items-center gap-3 w-full text-left">
-
-        <img src="../uploads/<?= $row['foto'] ?>"
-             class="w-[56px] h-[56px] rounded-lg object-cover">
-
-        <div class="flex-1">
-          <h3 class="font-semibold"><?= $row['nama_produk'] ?></h3>
-          <p class="text-primary font-bold">
-            Rp <?= number_format($row['harga'],0,',','.') ?>
-          </p>
-        </div>
-
-        <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700">
-          <?= $row['stok'] ?> Stok
+      <!-- Cart button -->
+      <a href="transaksi.php" class="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 transition" id="cartBtn">
+        <span class="material-symbols-rounded text-xl">shopping_cart</span>
+        <span id="cartBadge"
+              class="<?= $cartCount > 0 ? '' : 'hidden' ?> absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+          <?= $cartCount ?>
         </span>
-
-      </button>
-
-    </form>
-
-    <?php endwhile; ?>
-
-  </div>
-</main>
-
-<!-- ================= FLOATING BUTTON ================= -->
-<!-- FLOATING CHART (SAFE POSITION) -->
-
-<a href="transaksi.php"
-   class="fixed top-[72px] left-4 z-40 w-[70px] h-[70px] bg-white shadow-xl rounded-xl flex flex-col items-center justify-center border hover:scale-105 transition">
-
-    <span class="material-symbols-outlined text-[#8e4a0e] text-[26px]">
-        shopping_cart
-    </span>
-
-    <p class="text-[9px] font-semibold text-gray-600">
-        Cart
-    </p>
-
-</a>
-<!-- ================= MODAL ================= -->
-<div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-
-  <div class="bg-white w-[90%] max-w-md p-4 rounded-xl space-y-3">
-
-    <div class="flex justify-between">
-      <h3 class="font-bold">Tambah Produk</h3>
-      <button onclick="closeModal()">✕</button>
+      </a>
     </div>
 
-    <form method="POST" enctype="multipart/form-data" class="space-y-3">
+    <!-- Search -->
+    <div class="relative">
+      <span class="material-symbols-rounded absolute left-3 top-1/2 -translate-y-1/2 text-orange-300 text-lg">search</span>
+      <input
+        id="searchInput"
+        type="text"
+        placeholder="Cari produk..."
+        value="<?= htmlspecialchars($search) ?>"
+        class="w-full bg-white/15 backdrop-blur text-white placeholder-orange-200 border border-white/20 rounded-2xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:bg-white/25 transition">
+    </div>
 
-      <input name="nama_produk" placeholder="Nama Produk"
-        class="w-full border px-3 py-2 rounded-lg text-sm">
+  </div>
+</header>
 
-      <input name="harga" type="number" placeholder="Harga"
-        class="w-full border px-3 py-2 rounded-lg text-sm">
+<!-- ====== FILTER KATEGORI ====== -->
+<div class="max-w-md mx-auto px-4 pt-3 pb-1 flex gap-2 overflow-x-auto hide-sb">
+  <a href="produk.php"
+     class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === 0 && $search === '' ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
+    Semua
+  </a>
+  <?php while ($kat = mysqli_fetch_assoc($qKat)): ?>
+  <a href="produk.php?cat=<?= $kat['id'] ?>"
+     class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === (int)$kat['id'] ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
+    <?= htmlspecialchars($kat['nama_kategori']) ?>
+  </a>
+  <?php endwhile; ?>
+</div>
 
-      <input name="stok" type="number" placeholder="Stok"
-        class="w-full border px-3 py-2 rounded-lg text-sm">
+<!-- ====== MAIN ====== -->
+<main class="max-w-md mx-auto px-4 pt-3 space-y-3" id="productList">
 
-      <input type="file" name="foto"
-        class="w-full border px-3 py-2 rounded-lg text-sm">
+  <?php
+  $jumlahProduk = 0;
+  while ($row = mysqli_fetch_assoc($query)):
+    $jumlahProduk++;
+    $fotoProduk = !empty($row['foto']) ? "../uploads/" . htmlspecialchars($row['foto']) : "https://via.placeholder.com/100x100?text=No+Img";
+    $stok = (int) $row['stok'];
+    $habis = $stok === 0;
+    $stokBadge = $stok === 0
+        ? 'bg-red-100 text-red-700'
+        : ($stok <= (int)$row['stok_minimum'] ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700');
+    $stokLabel = $stok === 0 ? 'Habis' : "Stok $stok";
+  ?>
 
-      <button name="tambah"
-        class="w-full bg-primary text-white py-2 rounded-lg">
-        Simpan
+  <div class="product-card bg-white rounded-2xl flex items-center gap-3 p-3 shadow-sm border border-orange-50"
+       data-name="<?= htmlspecialchars(mb_strtolower($row['nama_produk'])) ?>">
+
+    <!-- Foto -->
+    <img src="<?= $fotoProduk ?>"
+         class="w-16 h-16 rounded-xl object-cover bg-orange-50 flex-shrink-0"
+         onerror="this.src='https://via.placeholder.com/100'">
+
+    <!-- Info -->
+    <div class="flex-1 min-w-0">
+      <h3 class="text-sm font-bold text-slate-800 truncate"><?= htmlspecialchars($row['nama_produk']) ?></h3>
+      <?php if (!empty($row['nama_kategori'])): ?>
+      <p class="text-[10px] text-slate-400 mt-0.5"><?= htmlspecialchars($row['nama_kategori']) ?></p>
+      <?php endif; ?>
+      <p class="text-sm font-extrabold text-[#8e4a0e] mt-1">Rp <?= number_format($row['harga'], 0, ',', '.') ?></p>
+    </div>
+
+    <!-- Kanan: Stok + Tombol -->
+    <div class="flex flex-col items-end gap-2 flex-shrink-0">
+      <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full <?= $stokBadge ?>"><?= $stokLabel ?></span>
+
+      <?php if (!$habis): ?>
+      <form method="POST" class="add-cart-form">
+        <input type="hidden" name="id" value="<?= $row['id'] ?>">
+        <button type="submit" name="add_cart"
+                class="add-btn w-9 h-9 rounded-full bg-[#8e4a0e] text-white flex items-center justify-center active:scale-90 transition shadow"
+                aria-label="Tambah ke keranjang">
+          <span class="material-symbols-rounded text-lg">add_shopping_cart</span>
+        </button>
+      </form>
+      <?php else: ?>
+      <button disabled class="w-9 h-9 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center cursor-not-allowed">
+        <span class="material-symbols-rounded text-lg">remove_shopping_cart</span>
+      </button>
+      <?php endif; ?>
+    </div>
+
+  </div>
+
+  <?php endwhile; ?>
+
+  <?php if ($jumlahProduk === 0): ?>
+  <div class="bg-white border border-dashed border-orange-200 rounded-2xl py-14 text-center mt-4">
+    <span class="material-symbols-rounded text-5xl text-orange-200">inventory_2</span>
+    <p class="text-sm font-semibold text-slate-600 mt-3">Produk tidak ditemukan</p>
+    <p class="text-xs text-slate-400 mt-1">Coba kata kunci lain atau tambah produk baru.</p>
+    <button onclick="openModal()" class="mt-4 px-5 py-2 bg-[#8e4a0e] text-white text-xs font-bold rounded-xl">+ Tambah Produk</button>
+  </div>
+  <?php endif; ?>
+
+  <p id="noResult" class="hidden text-center text-xs text-slate-400 py-6">Produk tidak ditemukan.</p>
+
+</main>
+
+<!-- ====== FAB TAMBAH PRODUK ====== -->
+<button onclick="openModal()"
+        class="fixed bottom-24 right-4 z-40 w-14 h-14 bg-[#8e4a0e] text-white rounded-2xl flex items-center justify-center shadow-xl active:scale-95 transition">
+  <span class="material-symbols-rounded text-2xl">add</span>
+</button>
+
+<!-- ====== TOAST ====== -->
+<div id="toast"
+     class="toast hidden fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-[#8e4a0e] text-white text-xs font-semibold px-5 py-2.5 rounded-full shadow-lg flex items-center gap-2">
+  <span class="material-symbols-rounded text-base">check_circle</span>
+  <span id="toastMsg">Ditambahkan ke keranjang</span>
+</div>
+
+<!-- ====== MODAL TAMBAH PRODUK ====== -->
+<div id="modal" class="hidden fixed inset-0 bg-black/50 flex items-end justify-center z-[60] px-0"
+     onclick="if(event.target===this)closeModal()">
+  <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-24 space-y-4 max-h-[90vh] overflow-y-auto">
+
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-extrabold text-slate-800">Tambah Produk</h3>
+      <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+        <span class="material-symbols-rounded text-slate-500 text-lg">close</span>
+      </button>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+
+      <div>
+        <label class="text-xs font-semibold text-slate-500 mb-1 block">Nama Produk *</label>
+        <input name="nama_produk" required placeholder="Contoh: Kopi Susu Gula Aren"
+               class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">Harga (Rp) *</label>
+          <input name="harga" type="number" min="0" required placeholder="0"
+                 class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+        </div>
+        <div>
+          <label class="text-xs font-semibold text-slate-500 mb-1 block">Stok *</label>
+          <input name="stok" type="number" min="0" required placeholder="0"
+                 class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-500 mb-1 block">Stok Minimum</label>
+        <input name="stok_minimum" type="number" min="0" value="5"
+               class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-500 mb-1 block">Foto Produk</label>
+        <label for="fotoInput"
+               class="flex items-center gap-3 border-2 border-dashed border-orange-200 bg-orange-50/50 rounded-xl px-4 py-3 cursor-pointer hover:bg-orange-100/40 transition">
+          <img id="fotoPreview" class="w-10 h-10 rounded-lg object-cover hidden">
+          <span class="material-symbols-rounded text-orange-300 text-2xl" id="fotoIcon">image</span>
+          <span id="fotoLabel" class="text-xs text-slate-400">Pilih gambar (jpg, png, webp)</span>
+        </label>
+        <input id="fotoInput" type="file" name="foto" accept=".jpg,.jpeg,.png,.webp" class="hidden">
+      </div>
+
+      <button name="tambah" class="w-full bg-[#8e4a0e] hover:bg-[#7a3e0b] text-white py-3.5 rounded-2xl font-bold text-sm transition shadow-lg shadow-orange-900/20">
+        Simpan Produk
       </button>
 
     </form>
-
   </div>
 </div>
-<!-- NAVBAR -->
+
 <?php include "navbar_karyawan.php"; ?>
 
-<!-- ================= SCRIPT ================= -->
 <script>
-function openModal(){
-  document.getElementById('modal').classList.remove('hidden');
-}
-function closeModal(){
-  document.getElementById('modal').classList.add('hidden');
-}
-</script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+// ===== Modal =====
+function openModal(){ document.getElementById('modal').classList.remove('hidden'); }
+function closeModal(){ document.getElementById('modal').classList.add('hidden'); }
 
-<script>
-const ctx = document.getElementById('miniChart');
-
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: <?= json_encode(array_reverse($labels ?? [])) ?>,
-        datasets: [{
-            data: <?= json_encode(array_reverse($data ?? [])) ?>,
-            borderColor: '#8e4a0e',
-            backgroundColor: 'rgba(142,74,14,0.2)',
-            tension: 0.4,
-            fill: true,
-            pointRadius: 0
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: { display: false }
-        },
-        scales: {
-            x: { display: false },
-            y: { display: false }
-        }
-    }
+// ===== Preview foto =====
+document.getElementById('fotoInput').addEventListener('change', function(){
+  const file = this.files[0];
+  if (!file) return;
+  document.getElementById('fotoLabel').textContent = file.name;
+  document.getElementById('fotoIcon').classList.add('hidden');
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById('fotoPreview');
+    prev.src = e.target.result;
+    prev.classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
 });
+
+// ===== Search client-side =====
+document.getElementById('searchInput').addEventListener('input', function(){
+  const kw = this.value.trim().toLowerCase();
+  const cards = document.querySelectorAll('#productList [data-name]');
+  let visible = 0;
+  cards.forEach(c => {
+    const match = c.dataset.name.includes(kw);
+    c.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  document.getElementById('noResult').classList.toggle('hidden', visible > 0 || cards.length === 0);
+});
+
+// ===== AJAX Add to Cart =====
+let cartCount = <?= $cartCount ?>;
+
+document.querySelectorAll('.add-cart-form').forEach(form => {
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+    const btn = this.querySelector('.add-btn');
+    btn.classList.add('bounce');
+    setTimeout(() => btn.classList.remove('bounce'), 300);
+
+    const fd = new FormData(this);
+    fd.append('add_cart', '1');
+
+    const res = await fetch('produk.php', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd
+    });
+    const data = await res.json();
+
+    // Update badge
+    cartCount = data.cartCount;
+    const badge = document.getElementById('cartBadge');
+    badge.textContent = cartCount;
+    badge.classList.toggle('hidden', cartCount === 0);
+
+    // Toast
+    showToast('Ditambahkan ke keranjang');
+  });
+});
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  t.classList.remove('hidden');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.add('hidden'), 2000);
+}
 </script>
-
-
 </body>
 </html>

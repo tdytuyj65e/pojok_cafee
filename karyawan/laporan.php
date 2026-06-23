@@ -20,7 +20,8 @@ if ($periode == 'hari') {
 }
 
 if ($search != '') {
-    $filter .= " AND kode_transaksi LIKE '%$search%'";
+    $searchEsc = mysqli_real_escape_string($conn, $search);
+    $filter .= " AND kode_transaksi LIKE '%$searchEsc%'";
 }
 
 /* =========================
@@ -43,6 +44,26 @@ $query = mysqli_query($conn, "
     WHERE $filter
     ORDER BY tanggal DESC
 ");
+
+/* =========================
+   EXPORT CSV (tombol "Excel")
+   Tetap memakai hasil query + filter yang sama di atas.
+========================= */
+if (($_GET['export'] ?? '') === 'excel') {
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="laporan_'.$periode.'_'.date('Ymd_His').'.csv"');
+
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Kode Transaksi', 'Tanggal', 'Total']);
+
+    while ($t = mysqli_fetch_assoc($query)) {
+        fputcsv($out, [$t['kode_transaksi'], $t['tanggal'], $t['total']]);
+    }
+
+    fclose($out);
+    exit;
+}
 
 /* =========================
    PRODUK TERLARIS
@@ -80,6 +101,13 @@ for ($i = 0; $i < 7; $i++) {
     "));
     $grafik_values[] = $r['total'];
 }
+
+/* helper kecil untuk query string filter yang konsisten di semua link */
+function pk_filterUrl($periode, $search, $extra = []) {
+    $params = array_merge(['periode' => $periode, 'q' => $search], $extra);
+    $params = array_filter($params, fn($v) => $v !== '' && $v !== null);
+    return '?' . http_build_query($params);
+}
 ?>
 
 <!DOCTYPE html>
@@ -88,14 +116,12 @@ for ($i = 0; $i < 7; $i++) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<script src="https://cdn.tailwindcss.com">
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<title>Laporan | Pojok Kafe</title>
+
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-</script>
-
-<title>Laporan - Pojok Kafe</title>
 
 <script id="tailwind-config">
         tailwind.config = {
@@ -183,6 +209,11 @@ for ($i = 0; $i < 7; $i++) {
         }
     </script>
 <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            min-height: max(884px, 100dvh);
+            background-color: #fff8f5;
+        }
         .material-symbols-outlined {
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
         }
@@ -192,116 +223,234 @@ for ($i = 0; $i < 7; $i++) {
         .button-shadow {
             box-shadow: 0px 4px 12px rgba(200, 119, 58, 0.30);
         }
+
+        .filter-chip {
+            transition: background .15s ease, color .15s ease, border-color .15s ease;
+        }
+        .filter-chip.active {
+            background: #8e4a0e;
+            color: #fff;
+            border-color: #8e4a0e;
+        }
+
+        .bar-fill {
+            transition: height .4s ease;
+            min-height: 4px;
+        }
+
+        .rank-badge {
+            width: 22px; height: 22px;
+            border-radius: 9999px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: 700;
+        }
+
+        table tbody tr:nth-child(even) { background: #fff8f5; }
+
+        @media print {
+            #pkActionBar, #pkFilterBar, #pkNavbarSlot, #pkPrintHint { display: none !important; }
+            body { background: #fff !important; }
+            .card-shadow, .button-shadow { box-shadow: none !important; }
+        }
     </style>
-<style>
-    body {
-      min-height: max(884px, 100dvh);
-    }
-  </style>
 </head>
 
-<body>
+<body class="text-on-surface pb-28">
 
 <div class="max-w-5xl mx-auto px-4 py-6 space-y-6">
 
 <!-- HEADER -->
-<div class="flex justify-between items-center">
+<div class="flex justify-between items-start gap-3" id="pkActionBar">
     <div>
-        <h1 class="text-xl font-bold">Laporan Penjualan</h1>
-        <p class="text-sm text-gray-500">Data transaksi</p>
+        <h1 class="text-xl font-bold text-on-surface">Laporan Penjualan</h1>
+        <p class="text-sm text-on-surface-variant">Ringkasan transaksi &amp; produk terlaris</p>
     </div>
 
-    <div class="flex gap-2">
-        <a href="?export=pdf" class="px-3 py-1 bg-red-500 text-white rounded"></a>
-        <a href="?export=excel" class="px-3 py-1 bg-green-600 text-white rounded"></a>
+    <div class="flex gap-2 flex-shrink-0">
+        <button type="button" onclick="window.print()"
+            class="px-3 h-9 bg-error text-on-error rounded-lg flex items-center gap-1.5 text-sm font-medium button-shadow">
+            <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+            <span class="hidden sm:inline">Cetak/PDF</span>
+        </button>
+
+        <a href="<?= pk_filterUrl($periode, $search, ['export' => 'excel']) ?>"
+            class="px-3 h-9 bg-green-600 text-white rounded-lg flex items-center gap-1.5 text-sm font-medium button-shadow">
+            <span class="material-symbols-outlined text-[18px]">file_download</span>
+            <span class="hidden sm:inline">Excel</span>
+        </a>
     </div>
 </div>
 
 <!-- FILTER -->
-<div class="flex gap-2">
-    <a href="?periode=hari" class="px-3 py-1 border rounded <?= $periode=='hari'?'active':'' ?>">Hari</a>
-    <a href="?periode=minggu" class="px-3 py-1 border rounded <?= $periode=='minggu'?'active':'' ?>">Minggu</a>
-    <a href="?periode=bulan" class="px-3 py-1 border rounded <?= $periode=='bulan'?'active':'' ?>">Bulan</a>
-    <a href="?periode=tahun" class="px-3 py-1 border rounded <?= $periode=='tahun'?'active':'' ?>">Tahun</a>
+<div class="space-y-3" id="pkFilterBar">
+
+    <div class="flex gap-2 overflow-x-auto">
+        <?php
+        $opsiPeriode = [
+            'hari'   => 'Hari ini',
+            'minggu' => 'Minggu ini',
+            'bulan'  => 'Bulan ini',
+            'tahun'  => 'Tahun ini',
+        ];
+        foreach ($opsiPeriode as $key => $label):
+            $isActive = $periode == $key;
+        ?>
+        <a href="<?= pk_filterUrl($key, $search) ?>"
+           class="filter-chip <?= $isActive ? 'active' : '' ?> px-4 py-1.5 border border-outline-variant bg-white rounded-full text-sm whitespace-nowrap flex-shrink-0">
+            <?= $label ?>
+        </a>
+        <?php endforeach; ?>
+    </div>
+
+    <form method="GET" class="flex gap-2">
+        <input type="hidden" name="periode" value="<?= htmlspecialchars($periode) ?>">
+        <div class="relative flex-1">
+            <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#a98f7e] text-[20px]">search</span>
+            <input type="text" name="q" value="<?= htmlspecialchars($search) ?>"
+                placeholder="Cari kode transaksi..."
+                class="w-full h-[42px] pl-10 pr-3 text-sm rounded-xl border border-outline-variant bg-white focus:outline-none focus:ring-2 focus:ring-primary/40">
+        </div>
+        <button type="submit" class="h-[42px] px-4 bg-primary text-on-primary rounded-xl text-sm font-medium">
+            Cari
+        </button>
+        <?php if ($search != ''): ?>
+        <a href="<?= pk_filterUrl($periode, '') ?>" class="h-[42px] px-3 flex items-center text-sm text-on-surface-variant">
+            Reset
+        </a>
+        <?php endif; ?>
+    </form>
+
 </div>
 
 <!-- RINGKASAN -->
-<div class="grid grid-cols-3 gap-4">
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-    <div class="bg-white p-4 rounded shadow">
-        <p>Total Pendapatan</p>
-        <b>Rp <?= number_format($ringkasan['pendapatan'],0,',','.') ?></b>
+    <div class="bg-[#a9632c] text-white p-4 rounded-xl card-shadow space-y-1">
+        <div class="flex items-center gap-2 text-sm opacity-90">
+            <span class="material-symbols-outlined text-[18px]">payments</span>
+            Total Pendapatan
+        </div>
+        <b class="text-lg block">Rp <?= number_format($ringkasan['pendapatan'],0,',','.') ?></b>
     </div>
 
-    <div class="bg-white p-4 rounded shadow">
-        <p>Total Transaksi</p>
-        <b><?= $ringkasan['total_transaksi'] ?></b>
+    <div class="bg-white p-4 rounded-xl card-shadow space-y-1">
+        <div class="flex items-center gap-2 text-sm text-on-surface-variant">
+            <span class="material-symbols-outlined text-[18px] text-primary">receipt_long</span>
+            Total Transaksi
+        </div>
+        <b class="text-lg block text-on-surface"><?= $ringkasan['total_transaksi'] ?></b>
     </div>
 
-    <div class="bg-white p-4 rounded shadow">
-        <p>Rata-rata</p>
-        <b>Rp <?= number_format($ringkasan['rata_rata'],0,',','.') ?></b>
+    <div class="bg-white p-4 rounded-xl card-shadow space-y-1">
+        <div class="flex items-center gap-2 text-sm text-on-surface-variant">
+            <span class="material-symbols-outlined text-[18px] text-primary">finance</span>
+            Rata-rata / Transaksi
+        </div>
+        <b class="text-lg block text-on-surface">Rp <?= number_format($ringkasan['rata_rata'],0,',','.') ?></b>
     </div>
 
 </div>
 
 <!-- PRODUK TERLARIS -->
-<div class="bg-white p-4 rounded shadow">
-<h2 class="font-bold mb-3">Produk Terlaris</h2>
+<div class="bg-white p-4 rounded-xl card-shadow">
+    <h2 class="font-bold mb-3 text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[20px]">local_fire_department</span>
+        Produk Terlaris
+    </h2>
 
-<?php foreach ($produk_terlaris as $p): ?>
-<div class="flex justify-between border-b py-1 text-sm">
-    <span><?= $p['nama_produk'] ?></span>
-    <span><?= $p['qty'] ?> pcs</span>
-    <b>Rp <?= number_format($p['pendapatan'],0,',','.') ?></b>
+    <?php if (empty($produk_terlaris)): ?>
+        <p class="text-sm text-on-surface-variant py-4 text-center">Belum ada data penjualan di periode ini.</p>
+    <?php else: ?>
+        <?php
+        $rankColors = ['bg-amber-400 text-white','bg-gray-300 text-gray-700','bg-orange-300 text-white'];
+        foreach ($produk_terlaris as $i => $p):
+            $rankClass = $rankColors[$i] ?? 'bg-secondary-container text-primary';
+        ?>
+        <div class="flex items-center gap-3 py-2 <?= $i < count($produk_terlaris)-1 ? 'border-b border-outline-variant/60' : '' ?>">
+            <span class="rank-badge <?= $rankClass ?>"><?= $i+1 ?></span>
+            <span class="flex-1 text-sm text-on-surface truncate"><?= htmlspecialchars($p['nama_produk']) ?></span>
+            <span class="text-xs text-on-surface-variant w-16 text-right"><?= $p['qty'] ?> pcs</span>
+            <b class="text-sm text-primary w-28 text-right">Rp <?= number_format($p['pendapatan'],0,',','.') ?></b>
+        </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
 </div>
-<?php endforeach; ?>
 
-</div>
+<!-- GRAFIK 7 HARI -->
+<div class="bg-white p-4 rounded-xl card-shadow">
+    <h2 class="font-bold mb-4 text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[20px]">bar_chart</span>
+        Grafik 7 Hari Terakhir
+    </h2>
 
-<!-- GRAFIK SEDERHANA -->
-<div class="bg-white p-4 rounded shadow">
-<h2 class="font-bold mb-3">Grafik 7 Hari</h2>
+    <?php $max = max($grafik_values) ?: 1; ?>
 
-<div class="flex items-end gap-2 h-32">
-<?php
-$max = max($grafik_values) ?: 1;
-foreach ($grafik_values as $i => $v):
-?>
-    <div class="flex-1 flex flex-col items-center">
-        <div style="height:<?= ($v/$max)*100 ?>px;background:#8e4a0e"
-             class="w-full rounded-t"></div>
-        <small><?= $grafik_labels[$i] ?></small>
+    <div class="flex items-end gap-2 h-36">
+        <?php foreach ($grafik_values as $i => $v): ?>
+        <div class="flex-1 flex flex-col items-center justify-end gap-1.5 h-full" title="Rp <?= number_format($v,0,',','.') ?>">
+            <span class="text-[10px] text-on-surface-variant"><?= $v > 0 ? number_format($v/1000,0,',','.').'rb' : '' ?></span>
+            <div class="bar-fill w-full rounded-t-md bg-primary"
+                 style="height:<?= max((($v/$max)*100), 2) ?>%"></div>
+            <small class="text-[11px] text-on-surface-variant"><?= $grafik_labels[$i] ?></small>
+        </div>
+        <?php endforeach; ?>
     </div>
-<?php endforeach; ?>
-</div>
-
 </div>
 
 <!-- TRANSAKSI -->
-<div class="bg-white p-4 rounded shadow">
-<h2 class="font-bold mb-3">Riwayat Transaksi</h2>
+<div class="bg-white p-4 rounded-xl card-shadow">
+    <h2 class="font-bold mb-3 text-on-surface flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-[20px]">history</span>
+        Riwayat Transaksi
+    </h2>
 
-<table class="w-full text-sm">
-<tr class="border-b">
-    <th>Kode</th>
-    <th>Waktu</th>
-    <th>Total</th>
-</tr>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[420px]">
+            <thead>
+                <tr class="border-b border-outline-variant text-left text-on-surface-variant">
+                    <th class="py-2 font-medium">Kode</th>
+                    <th class="py-2 font-medium">Waktu</th>
+                    <th class="py-2 font-medium text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $adaTransaksi = false;
+                while ($t = mysqli_fetch_assoc($query)):
+                    $adaTransaksi = true;
+                ?>
+                <tr class="border-b border-outline-variant/60">
+                    <td class="py-2.5 font-medium text-on-surface"><?= htmlspecialchars($t['kode_transaksi']) ?></td>
+                    <td class="py-2.5 text-on-surface-variant">
+                        <?= date('d/m H:i', strtotime($t['tanggal'])) ?>
+                    </td>
+                    <td class="py-2.5 text-right font-semibold text-primary">
+                        Rp <?= number_format($t['total'],0,',','.') ?>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
 
-<?php while ($t = mysqli_fetch_assoc($query)): ?>
-<tr class="border-b">
-    <td><?= $t['kode_transaksi'] ?></td>
-    <td><?= date('H:i', strtotime($t['tanggal'])) ?></td>
-    <td>Rp <?= number_format($t['total'],0,',','.') ?></td>
-</tr>
-<?php endwhile; ?>
+                <?php if (!$adaTransaksi): ?>
+                <tr>
+                    <td colspan="3" class="py-8 text-center text-on-surface-variant">
+                        Tidak ada transaksi pada periode/pencarian ini.
+                    </td>
+                </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
 
-</table>
+<p id="pkPrintHint" class="text-center text-[11px] text-on-surface-variant">
+    Tips: tombol "Cetak/PDF" membuka dialog cetak browser — pilih "Simpan sebagai PDF" untuk menyimpan laporan ini.
+</p>
 
 </div>
 
-</div>
+<div id="pkNavbarSlot">
 <?php include "navbar_karyawan.php"; ?>
+</div>
+
 </body>
 </html>
