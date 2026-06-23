@@ -17,257 +17,658 @@ if ((int)$_SESSION['role_id'] !== 1) {
 }
 
 /* ==========================
-   PENCARIAN
+   AMBIL KATEGORI (untuk form)
+========================== */
+
+$kategori_query = $conn->query("SELECT id, nama_kategori FROM categories ORDER BY nama_kategori ASC");
+$kategori_list = [];
+while ($k = $kategori_query->fetch_assoc()) {
+    $kategori_list[] = $k;
+}
+
+/* ==========================
+   PROSES TAMBAH PRODUK
+========================== */
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'tambah') {
+    $nama   = trim($_POST['nama_produk'] ?? '');
+    $harga  = (float)($_POST['harga'] ?? 0);
+    $stok   = (int)($_POST['stok'] ?? 0);
+    $stok_min = (int)($_POST['stok_minimum'] ?? 5);
+    $cat_id = (int)($_POST['category_id'] ?? 0) ?: null;
+    $foto   = null;
+
+    if (!empty($_FILES['foto']['name'])) {
+        $ext   = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
+        $foto  = uniqid('prod_') . '.' . $ext;
+        move_uploaded_file($_FILES['foto']['tmp_name'], "../uploads/" . $foto);
+    }
+
+    $stmt = $conn->prepare("INSERT INTO products (category_id, nama_produk, harga, stok, stok_minimum, foto) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("isdiss", $cat_id, $nama, $harga, $stok, $stok_min, $foto);
+
+    if ($stmt->execute()) {
+        $_SESSION['success'] = "Produk <strong>$nama</strong> berhasil ditambahkan.";
+    } else {
+        $_SESSION['error'] = "Gagal menambahkan produk.";
+    }
+
+    header("Location: produk.php");
+    exit;
+}
+
+/* ==========================
+   PROSES EDIT PRODUK
+========================== */
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit') {
+    $id     = (int)$_POST['id'];
+    $nama   = trim($_POST['nama_produk'] ?? '');
+    $harga  = (float)($_POST['harga'] ?? 0);
+    $stok   = (int)($_POST['stok'] ?? 0);
+    $stok_min = (int)($_POST['stok_minimum'] ?? 5);
+    $cat_id = (int)($_POST['category_id'] ?? 0) ?: null;
+
+    // Ambil foto lama
+    $old = $conn->query("SELECT foto FROM products WHERE id = $id")->fetch_assoc();
+    $foto = $old['foto'];
+
+    if (!empty($_FILES['foto']['name'])) {
+        $ext  = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
+        $foto = uniqid('prod_') . '.' . $ext;
+        move_uploaded_file($_FILES['foto']['tmp_name'], "../uploads/" . $foto);
+    }
+
+    $stmt = $conn->prepare("UPDATE products SET category_id=?, nama_produk=?, harga=?, stok=?, stok_minimum=?, foto=? WHERE id=?");
+$stmt->bind_param("isdiisi", $cat_id, $nama, $harga, $stok, $stok_min, $foto, $id);
+
+    if ($stmt->execute()) {
+        $_SESSION['success'] = "Produk <strong>$nama</strong> berhasil diperbarui.";
+    } else {
+        $_SESSION['error'] = "Gagal memperbarui produk.";
+    }
+
+    header("Location: produk.php");
+    exit;
+}
+
+/* ==========================
+   PROSES HAPUS PRODUK
+========================== */
+
+if (isset($_GET['hapus'])) {
+    $id = (int)$_GET['hapus'];
+    $row = $conn->query("SELECT nama_produk, foto FROM products WHERE id = $id")->fetch_assoc();
+    if ($row) {
+        $conn->query("DELETE FROM products WHERE id = $id");
+        $_SESSION['success'] = "Produk <strong>{$row['nama_produk']}</strong> berhasil dihapus.";
+    }
+    header("Location: produk.php");
+    exit;
+}
+
+/* ==========================
+   PENCARIAN + FETCH
 ========================== */
 
 $cari = $_GET['cari'] ?? '';
 
 $stmt = $conn->prepare("
-SELECT
-    p.*,
-    c.nama_kategori
-FROM products p
-LEFT JOIN categories c
-ON p.category_id = c.id
-WHERE p.nama_produk LIKE CONCAT('%', ?, '%')
-ORDER BY p.id DESC
+    SELECT p.*, c.nama_kategori
+    FROM products p
+    LEFT JOIN categories c ON p.category_id = c.id
+    WHERE p.nama_produk LIKE CONCAT('%', ?, '%')
+    ORDER BY p.id DESC
 ");
-
 $stmt->bind_param("s", $cari);
 $stmt->execute();
-
 $query = $stmt->get_result();
+$produk_list = $query->fetch_all(MYSQLI_ASSOC);
+$total_produk = count($produk_list);
 
-$total_produk = $query->num_rows;
+/* Edit: pre-fetch product if ?edit= */
+$edit_data = null;
+if (isset($_GET['edit'])) {
+    $eid = (int)$_GET['edit'];
+    $edit_data = $conn->query("SELECT * FROM products WHERE id = $eid")->fetch_assoc();
+}
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>Produk - Pojok Kafe</title>
+<title>Produk – Pojok Kafe</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
-
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
 <style>
-body{
-    font-family:'Poppins',sans-serif;
-}
-</style>
+  * { font-family: 'Poppins', sans-serif; }
 
+  /* Slide panel */
+  .panel-overlay {
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity .28s ease, visibility .28s ease;
+  }
+  .panel-overlay.open {
+    visibility: visible;
+    opacity: 1;
+  }
+  .panel-drawer {
+    transform: translateX(100%);
+    transition: transform .32s cubic-bezier(.4,0,.2,1);
+  }
+  .panel-overlay.open .panel-drawer {
+    transform: translateX(0);
+  }
+
+  /* Custom scrollbar for panel */
+  .panel-drawer::-webkit-scrollbar { width: 5px; }
+  .panel-drawer::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+  .panel-drawer::-webkit-scrollbar-thumb { background: #fb923c; border-radius: 10px; }
+
+  /* Card hover lift */
+  .prod-card { transition: transform .2s ease, box-shadow .2s ease; }
+  .prod-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,.1); }
+
+  /* Input focus ring */
+  .form-input:focus {
+    outline: none;
+    border-color: #fb923c;
+    box-shadow: 0 0 0 3px rgba(251,146,60,.2);
+  }
+
+  /* Photo preview */
+  #preview-tambah, #preview-edit {
+    transition: opacity .2s;
+  }
+
+  /* Badge pulse for low stock */
+  @keyframes pulse-red {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .65; }
+  }
+  .badge-low { animation: pulse-red 2s infinite; }
+</style>
 </head>
-<body class="bg-slate-100">
+
+<body class="bg-slate-100 min-h-screen">
 
 <?php include "navbar_owner.php"; ?>
 
 <div class="lg:ml-64 min-h-screen">
 
-    <!-- HEADER -->
-    <div class="bg-gradient-to-r from-orange-500 to-orange-600 p-6 text-white shadow">
+  <!-- ===== HEADER ===== -->
+  <div class="bg-gradient-to-r from-orange-500 via-orange-500 to-amber-500 px-8 py-8 text-white shadow-lg">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
-        <h1 class="text-3xl font-bold">
-            Manajemen Produk ☕
-        </h1>
+      <div>
+        <p class="text-orange-200 text-sm font-medium uppercase tracking-widest mb-1">Pojok Kafe</p>
+        <h1 class="text-3xl font-extrabold tracking-tight">Manajemen Produk ☕</h1>
+        <p class="text-orange-100 mt-1 text-sm">Kelola seluruh produk dengan mudah</p>
+      </div>
 
-        <p class="text-orange-100 mt-1">
-            Kelola seluruh produk Pojok Kafe
-        </p>
+      <button
+        onclick="bukaPanel('tambah')"
+        class="flex items-center gap-2 bg-white text-orange-600 font-bold px-6 py-3 rounded-2xl shadow-md hover:bg-orange-50 transition self-start sm:self-auto">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+        </svg>
+        Tambah Produk
+      </button>
 
     </div>
+  </div>
 
-    <div class="p-6">
+  <!-- ===== MAIN CONTENT ===== -->
+  <div class="p-6 max-w-[1600px]">
 
-        <!-- ALERT -->
-        <?php if(isset($_SESSION['success'])): ?>
+    <!-- ALERT -->
+    <?php if(isset($_SESSION['success'])): ?>
+    <div class="flex items-center gap-3 bg-green-50 border border-green-200 text-green-700 px-5 py-4 rounded-2xl mb-5 shadow-sm">
+      <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+      <span><?= $_SESSION['success']; ?></span>
+    </div>
+    <?php unset($_SESSION['success']); endif; ?>
 
-        <div class="bg-green-100 border border-green-300 text-green-700 px-4 py-3 rounded-xl mb-5">
-            <?= $_SESSION['success']; ?>
+    <?php if(isset($_SESSION['error'])): ?>
+    <div class="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-5 py-4 rounded-2xl mb-5 shadow-sm">
+      <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      <span><?= $_SESSION['error']; ?></span>
+    </div>
+    <?php unset($_SESSION['error']); endif; ?>
+
+    <!-- SEARCH & STATS BAR -->
+    <div class="bg-white rounded-3xl shadow-sm p-5 mb-6">
+      <div class="flex flex-col sm:flex-row gap-4 items-center justify-between">
+
+        <form method="GET" class="flex gap-2 w-full sm:w-auto">
+          <div class="relative flex-1 sm:w-80">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+            <input
+              type="text" name="cari"
+              value="<?= htmlspecialchars($cari) ?>"
+              placeholder="Cari nama produk..."
+              class="form-input w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm bg-gray-50">
+          </div>
+          <button type="submit" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition">Cari</button>
+          <?php if($cari): ?>
+          <a href="produk.php" class="border border-gray-200 text-gray-500 hover:bg-gray-50 px-4 py-2.5 rounded-xl text-sm transition">Reset</a>
+          <?php endif; ?>
+        </form>
+
+        <div class="flex gap-3">
+          <div class="bg-orange-50 text-orange-700 px-4 py-2 rounded-xl text-sm font-semibold">
+            📦 <?= $total_produk ?> Produk
+          </div>
+          <?php
+            $low_stock = array_filter($produk_list, fn($p) => $p['stok'] <= $p['stok_minimum']);
+            if(count($low_stock) > 0):
+          ?>
+          <div class="bg-red-50 text-red-600 px-4 py-2 rounded-xl text-sm font-semibold badge-low">
+            ⚠️ <?= count($low_stock) ?> Stok Menipis
+          </div>
+          <?php endif; ?>
         </div>
 
-        <?php unset($_SESSION['success']); ?>
+      </div>
+    </div>
+
+    <!-- PRODUK GRID -->
+    <?php if($total_produk > 0): ?>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+
+    <?php foreach($produk_list as $p): ?>
+    <div class="prod-card bg-white rounded-3xl shadow overflow-hidden flex flex-col">
+
+      <!-- Foto -->
+      <div class="relative">
+        <?php if(!empty($p['foto'])): ?>
+          <img src="../uploads/<?= htmlspecialchars($p['foto']) ?>"
+               alt="<?= htmlspecialchars($p['nama_produk']) ?>"
+               class="w-full h-48 object-cover">
+        <?php else: ?>
+          <div class="h-48 bg-gradient-to-br from-orange-50 to-amber-100 flex items-center justify-center text-5xl">☕</div>
         <?php endif; ?>
 
-        <?php if(isset($_SESSION['error'])): ?>
-
-        <div class="bg-red-100 border border-red-300 text-red-700 px-4 py-3 rounded-xl mb-5">
-            <?= $_SESSION['error']; ?>
-        </div>
-
-        <?php unset($_SESSION['error']); ?>
+        <!-- Category chip -->
+        <?php if(!empty($p['nama_kategori'])): ?>
+        <span class="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-orange-600 text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm">
+          <?= htmlspecialchars($p['nama_kategori']) ?>
+        </span>
         <?php endif; ?>
 
-        <!-- TOP BAR -->
-        <div class="bg-white rounded-3xl shadow p-5 mb-6">
+        <!-- Low stock badge -->
+        <?php if($p['stok'] <= $p['stok_minimum']): ?>
+        <span class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm badge-low">
+          Stok Tipis
+        </span>
+        <?php endif; ?>
+      </div>
 
-            <div class="flex flex-col md:flex-row gap-4 justify-between items-center">
+      <!-- Content -->
+      <div class="p-5 flex flex-col flex-1">
+        <h2 class="font-bold text-base text-gray-800 leading-snug mb-3">
+          <?= htmlspecialchars($p['nama_produk']) ?>
+        </h2>
 
-                <form method="GET" class="flex gap-2 w-full md:w-auto">
-
-                    <input
-                        type="text"
-                        name="cari"
-                        value="<?= htmlspecialchars($cari) ?>"
-                        placeholder="Cari produk..."
-                        class="border border-gray-300 rounded-xl px-4 py-3 w-full md:w-80">
-
-                    <button
-                        type="submit"
-                        class="bg-orange-500 hover:bg-orange-600 text-white px-5 rounded-xl">
-
-                        Cari
-
-                    </button>
-
-                </form>
-
-            </div>
-
-        </div>
-
-        <!-- INFO -->
-        <div class="mb-6">
-
-            <span class="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl font-medium">
-                Total Produk : <?= $total_produk ?>
+        <div class="space-y-2 mb-5 flex-1">
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400 text-sm">Harga</span>
+            <span class="font-bold text-green-600 text-base">Rp <?= number_format($p['harga'],0,',','.') ?></span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400 text-sm">Stok</span>
+            <span class="font-semibold text-gray-700 <?= $p['stok'] <= $p['stok_minimum'] ? 'text-red-500' : '' ?>">
+              <?= $p['stok'] ?> unit
             </span>
-
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-gray-400 text-sm">Min. Stok</span>
+            <span class="text-gray-500 text-sm"><?= $p['stok_minimum'] ?> unit</span>
+          </div>
         </div>
 
-        <!-- PRODUK -->
-        <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-6">
-
-        <?php while($p = mysqli_fetch_assoc($query)): ?>
-
-            <div class="bg-white rounded-3xl shadow hover:shadow-xl transition overflow-hidden">
-
-                <!-- FOTO -->
-                <?php if(!empty($p['foto'])): ?>
-
-                    <img
-                    src="../uploads/<?= htmlspecialchars($p['foto']) ?>"
-                    alt="<?= htmlspecialchars($p['nama_produk']) ?>"
-                    class="w-full h-52 object-cover">
-
-                <?php else: ?>
-
-                    <div class="h-52 bg-gray-200 flex items-center justify-center text-6xl">
-                        ☕
-                    </div>
-
-                <?php endif; ?>
-
-                <!-- CONTENT -->
-                <div class="p-5">
-
-                    <div class="flex justify-between items-start">
-
-                        <div>
-
-                            <h2 class="font-bold text-lg">
-                                <?= htmlspecialchars($p['nama_produk']) ?>
-                            </h2>
-
-                            <p class="text-gray-500 text-sm">
-                                <?= htmlspecialchars($p['nama_kategori'] ?? '-') ?>
-                            </p>
-
-                        </div>
-
-                        <?php if($p['stok'] <= $p['stok_minimum']): ?>
-
-                        <span class="bg-red-100 text-red-600 px-2 py-1 rounded-lg text-xs">
-                            Stok Menipis
-                        </span>
-
-                        <?php endif; ?>
-
-                    </div>
-
-                    <div class="mt-4 space-y-2">
-
-                        <div class="flex justify-between">
-
-                            <span class="text-gray-500">
-                                Harga
-                            </span>
-
-                            <span class="font-bold text-green-600">
-                                Rp <?= number_format($p['harga'],0,',','.') ?>
-                            </span>
-
-                        </div>
-
-                        <div class="flex justify-between">
-
-                            <span class="text-gray-500">
-                                Stok
-                            </span>
-
-                            <span class="font-semibold">
-                                <?= $p['stok'] ?>
-                            </span>
-
-                        </div>
-
-                    </div>
-
-                    <!-- BUTTON -->
-                    <div class="grid grid-cols-2 gap-3 mt-5">
-
-                        <a
-                        href="edit_produk.php?id=<?= $p['id'] ?>"
-                        class="bg-blue-500 hover:bg-blue-600 text-white text-center py-2 rounded-xl">
-
-                            Edit
-
-                        </a>
-
-                        <a
-                        href="hapus_produk.php?id=<?= $p['id'] ?>"
-                        onclick="return confirm('Yakin ingin menghapus produk ini?')"
-                        class="bg-red-500 hover:bg-red-600 text-white text-center py-2 rounded-xl">
-
-                            Hapus
-
-                        </a>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        <?php endwhile; ?>
-
+        <!-- Progress stok -->
+        <?php
+          $pct = $p['stok_minimum'] > 0
+            ? min(100, round(($p['stok'] / max($p['stok_minimum'] * 3, 1)) * 100))
+            : 100;
+          $bar_color = $p['stok'] <= $p['stok_minimum'] ? 'bg-red-400' : 'bg-green-400';
+        ?>
+        <div class="mb-4">
+          <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full <?= $bar_color ?> rounded-full" style="width: <?= $pct ?>%"></div>
+          </div>
         </div>
 
-        <?php if($total_produk == 0): ?>
+        <!-- Actions -->
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            onclick="bukaEdit(<?= htmlspecialchars(json_encode($p)) ?>)"
+            class="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold py-2.5 rounded-xl text-sm transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            Edit
+          </button>
 
-        <div class="bg-white rounded-3xl shadow p-10 text-center mt-6">
-
-            <div class="text-6xl mb-4">
-                📦
-            </div>
-
-            <h3 class="text-xl font-bold text-gray-700">
-                Produk Tidak Ditemukan
-            </h3>
-
-            <p class="text-gray-500 mt-2">
-                Belum ada produk yang sesuai dengan pencarian.
-            </p>
-
+          <a
+            href="?hapus=<?= $p['id'] ?><?= $cari ? '&cari='.urlencode($cari) : '' ?>"
+            onclick="return confirm('Yakin ingin menghapus produk ini?')"
+            class="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/></svg>
+            Hapus
+          </a>
         </div>
 
-        <?php endif; ?>
-
+      </div>
+    </div>
+    <?php endforeach; ?>
     </div>
 
+<?php else: ?>
+<div class="bg-white rounded-3xl shadow p-16 text-center">
+    <div class="text-7xl mb-4">📦</div>
+    <h3 class="text-xl font-bold text-gray-700 mb-2">Produk Tidak Ditemukan</h3>
+
+    <p class="text-gray-400 mb-6">
+    <?php if ($cari): ?>
+        Tidak ada produk yang cocok dengan <strong><?= htmlspecialchars($cari) ?></strong>
+    <?php else: ?>
+        Belum ada produk. Mulai tambah produk pertamamu!
+    <?php endif; ?>
+    </p>
+
+    <button onclick="bukaPanel('tambah')"
+        class="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition">
+        + Tambah Produk Pertama
+    </button>
 </div>
+
+<?php endif; ?>
+
+  </div><!-- /p-6 -->
+</div><!-- /lg:ml-64 -->
+
+
+<!-- ============================================================
+     PANEL TAMBAH PRODUK
+============================================================ -->
+<div id="panel-tambah" class="panel-overlay fixed inset-0 z-50 flex justify-end">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onclick="tutupPanel('tambah')"></div>
+
+  <!-- Drawer -->
+  <div class="panel-drawer relative bg-white w-full max-w-lg h-full overflow-y-auto shadow-2xl flex flex-col">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-orange-500 to-amber-500 px-6 py-5 text-white flex items-center justify-between flex-shrink-0">
+      <div>
+        <p class="text-orange-100 text-xs uppercase tracking-widest">Form Baru</p>
+        <h2 class="text-xl font-bold mt-0.5">Tambah Produk</h2>
+      </div>
+      <button onclick="tutupPanel('tambah')" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Form Body -->
+    <form method="POST" enctype="multipart/form-data" class="flex-1 flex flex-col">
+      <input type="hidden" name="action" value="tambah">
+
+      <div class="p-6 space-y-5 flex-1">
+
+        <!-- Foto Upload -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Foto Produk</label>
+          <label for="foto-tambah"
+            class="group relative flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer bg-gray-50 hover:border-orange-400 hover:bg-orange-50 transition overflow-hidden">
+            <img id="preview-tambah" src="" alt="" class="absolute inset-0 w-full h-full object-cover opacity-0 rounded-2xl">
+            <div id="placeholder-tambah" class="text-center">
+              <div class="text-3xl mb-1">📷</div>
+              <p class="text-sm text-gray-400">Klik untuk pilih foto</p>
+              <p class="text-xs text-gray-300 mt-0.5">JPG, PNG, WEBP</p>
+            </div>
+          </label>
+          <input type="file" id="foto-tambah" name="foto" accept="image/*" class="hidden" onchange="previewFoto(this, 'preview-tambah', 'placeholder-tambah')">
+        </div>
+
+        <!-- Nama Produk -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nama Produk <span class="text-red-400">*</span></label>
+          <input type="text" name="nama_produk" required placeholder="Contoh: Kopi Susu Gula Aren"
+            class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+        </div>
+
+        <!-- Kategori -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Kategori</label>
+          <select name="category_id" class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+            <option value="">— Tanpa Kategori —</option>
+            <?php foreach($kategori_list as $k): ?>
+            <option value="<?= $k['id'] ?>"><?= htmlspecialchars($k['nama_kategori']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <!-- Harga -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Harga (Rp) <span class="text-red-400">*</span></label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">Rp</span>
+            <input type="number" name="harga" required min="0" step="500" placeholder="0"
+              class="form-input w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+        </div>
+
+        <!-- Stok & Stok Minimum -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Stok Awal</label>
+            <input type="number" name="stok" min="0" value="0"
+              class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Stok Minimum</label>
+            <input type="number" name="stok_minimum" min="0" value="5"
+              class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-400">Notifikasi stok menipis akan muncul saat stok ≤ stok minimum.</p>
+
+      </div><!-- /p-6 -->
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex gap-3 flex-shrink-0">
+        <button type="button" onclick="tutupPanel('tambah')"
+          class="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-100 transition text-sm">
+          Batal
+        </button>
+        <button type="submit"
+          class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-sm">
+          Simpan Produk
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     PANEL EDIT PRODUK
+============================================================ -->
+<div id="panel-edit" class="panel-overlay fixed inset-0 z-50 flex justify-end">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onclick="tutupPanel('edit')"></div>
+
+  <!-- Drawer -->
+  <div class="panel-drawer relative bg-white w-full max-w-lg h-full overflow-y-auto shadow-2xl flex flex-col">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-500 to-indigo-500 px-6 py-5 text-white flex items-center justify-between flex-shrink-0">
+      <div>
+        <p class="text-blue-100 text-xs uppercase tracking-widest">Perbarui Data</p>
+        <h2 class="text-xl font-bold mt-0.5">Edit Produk</h2>
+      </div>
+      <button onclick="tutupPanel('edit')" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <!-- Form Body -->
+    <form method="POST" enctype="multipart/form-data" class="flex-1 flex flex-col">
+      <input type="hidden" name="action" value="edit">
+      <input type="hidden" name="id" id="edit-id">
+
+      <div class="p-6 space-y-5 flex-1">
+
+        <!-- Foto Upload -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Foto Produk</label>
+          <label for="foto-edit"
+            class="group relative flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer bg-gray-50 hover:border-blue-400 hover:bg-blue-50 transition overflow-hidden">
+            <img id="preview-edit" src="" alt="" class="absolute inset-0 w-full h-full object-cover rounded-2xl" style="opacity:0">
+            <div id="placeholder-edit" class="text-center">
+              <div class="text-3xl mb-1">📷</div>
+              <p class="text-sm text-gray-400">Klik untuk ganti foto</p>
+              <p class="text-xs text-gray-300 mt-0.5">Biarkan kosong untuk pertahankan foto lama</p>
+            </div>
+          </label>
+          <input type="file" id="foto-edit" name="foto" accept="image/*" class="hidden" onchange="previewFoto(this, 'preview-edit', 'placeholder-edit')">
+        </div>
+
+        <!-- Nama -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Nama Produk <span class="text-red-400">*</span></label>
+          <input type="text" name="nama_produk" id="edit-nama" required placeholder="Nama produk"
+            class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+        </div>
+
+        <!-- Kategori -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Kategori</label>
+          <select name="category_id" id="edit-kategori" class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+            <option value="">— Tanpa Kategori —</option>
+            <?php foreach($kategori_list as $k): ?>
+            <option value="<?= $k['id'] ?>"><?= htmlspecialchars($k['nama_kategori']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <!-- Harga -->
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">Harga (Rp) <span class="text-red-400">*</span></label>
+          <div class="relative">
+            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">Rp</span>
+            <input type="number" name="harga" id="edit-harga" required min="0" step="500" placeholder="0"
+              class="form-input w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+        </div>
+
+        <!-- Stok & Stok Minimum -->
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Stok</label>
+            <input type="number" name="stok" id="edit-stok" min="0"
+              class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1.5">Stok Minimum</label>
+            <input type="number" name="stok_minimum" id="edit-stok-min" min="0"
+              class="form-input w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-400">Notifikasi stok menipis akan muncul saat stok ≤ stok minimum.</p>
+
+      </div>
+
+      <!-- Footer -->
+      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex gap-3 flex-shrink-0">
+        <button type="button" onclick="tutupPanel('edit')"
+          class="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-100 transition text-sm">
+          Batal
+        </button>
+        <button type="submit"
+          class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-sm">
+          Simpan Perubahan
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+
+<script>
+/* ===== Panel Open/Close ===== */
+function bukaPanel(name) {
+  document.getElementById('panel-' + name).classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function tutupPanel(name) {
+  document.getElementById('panel-' + name).classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+/* Close on Escape */
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    tutupPanel('tambah');
+    tutupPanel('edit');
+  }
+});
+
+/* ===== Foto Preview ===== */
+function previewFoto(input, previewId, placeholderId) {
+  if (!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById(previewId);
+    const ph  = document.getElementById(placeholderId);
+    img.src = e.target.result;
+    img.style.opacity = '1';
+    ph.style.display = 'none';
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+
+/* ===== Populate Edit Panel ===== */
+function bukaEdit(p) {
+  document.getElementById('edit-id').value        = p.id;
+  document.getElementById('edit-nama').value      = p.nama_produk;
+  document.getElementById('edit-harga').value     = p.harga;
+  document.getElementById('edit-stok').value      = p.stok;
+  document.getElementById('edit-stok-min').value  = p.stok_minimum;
+
+  // Kategori
+  const sel = document.getElementById('edit-kategori');
+  for (let i = 0; i < sel.options.length; i++) {
+    sel.options[i].selected = (sel.options[i].value == p.category_id);
+  }
+
+  // Foto preview
+  const img = document.getElementById('preview-edit');
+  const ph  = document.getElementById('placeholder-edit');
+  if (p.foto) {
+    img.src = '../uploads/' + p.foto;
+    img.style.opacity = '1';
+    ph.style.display = 'none';
+  } else {
+    img.src = '';
+    img.style.opacity = '0';
+    ph.style.display = '';
+  }
+
+  // Reset file input
+  document.getElementById('foto-edit').value = '';
+
+  bukaPanel('edit');
+}
+</script>
 
 </body>
 </html>
