@@ -16,6 +16,7 @@ if (isset($_POST['tambah'])) {
     $harga = (int) $_POST['harga'];
     $stok  = (int) $_POST['stok'];
     $stok_min = (int) ($_POST['stok_minimum'] ?? 5);
+    $cat_id = (int) ($_POST['category_id'] ?? 0) ?: null;
 
     $newName = null;
     if (!empty($_FILES['foto']['name'])) {
@@ -27,11 +28,23 @@ if (isset($_POST['tambah'])) {
     }
 
     $stmtP = mysqli_prepare($conn,
-        "INSERT INTO products (nama_produk, harga, stok, stok_minimum, foto) VALUES (?,?,?,?,?)"
+        "INSERT INTO products (category_id, nama_produk, harga, stok, stok_minimum, foto) VALUES (?,?,?,?,?,?)"
     );
-    mysqli_stmt_bind_param($stmtP, "siiss", $nama, $harga, $stok, $stok_min, $newName);
+    mysqli_stmt_bind_param($stmtP, "isiiss", $cat_id, $nama, $harga, $stok, $stok_min, $newName);
     mysqli_stmt_execute($stmtP);
 
+    header("Location: produk.php");
+    exit;
+}
+
+/* ===== TAMBAH KATEGORI ===== */
+if (isset($_POST['tambah_kategori'])) {
+    $nama_kat = trim($_POST['nama_kategori'] ?? '');
+    if ($nama_kat !== '') {
+        $stmtK = mysqli_prepare($conn, "INSERT INTO categories (nama_kategori) VALUES (?)");
+        mysqli_stmt_bind_param($stmtK, "s", $nama_kat);
+        mysqli_stmt_execute($stmtK);
+    }
     header("Location: produk.php");
     exit;
 }
@@ -98,6 +111,7 @@ $query = mysqli_query($conn, $sql);
 
 // Kategori untuk filter
 $qKat = mysqli_query($conn, "SELECT * FROM categories ORDER BY nama_kategori ASC");
+$kategori_list = mysqli_fetch_all($qKat, MYSQLI_ASSOC);
 
 /* ===== USER ===== */
 $stmtU = mysqli_prepare($conn, "SELECT * FROM users WHERE id=?");
@@ -150,6 +164,10 @@ body { background:#fff8f5; min-height:100dvh; }
 .filter-chip { transition:all .15s ease; }
 .filter-chip.active { background:#8e4a0e; color:#fff; border-color:#8e4a0e; }
 
+/* Hide scrollbar */
+.hide-sb::-webkit-scrollbar { display:none; }
+.hide-sb { scrollbar-width:none; }
+
 /* Add to cart button bounce */
 @keyframes bounce-once { 0%,100%{transform:scale(1)} 50%{transform:scale(0.85)} }
 .bounce { animation:bounce-once .2s ease; }
@@ -196,17 +214,26 @@ body { background:#fff8f5; min-height:100dvh; }
 </header>
 
 <!-- ====== FILTER KATEGORI ====== -->
-<div class="max-w-md mx-auto px-4 pt-3 pb-1 flex gap-2 overflow-x-auto hide-sb">
-  <a href="produk.php"
-     class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === 0 && $search === '' ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
-    Semua
-  </a>
-  <?php while ($kat = mysqli_fetch_assoc($qKat)): ?>
-  <a href="produk.php?cat=<?= $kat['id'] ?>"
-     class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === (int)$kat['id'] ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
-    <?= htmlspecialchars($kat['nama_kategori']) ?>
-  </a>
-  <?php endwhile; ?>
+<div class="max-w-md mx-auto px-4 pt-3 pb-1 flex items-center gap-2">
+  <div class="flex gap-2 overflow-x-auto hide-sb flex-1">
+    <a href="produk.php"
+       class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === 0 && $search === '' ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
+      Semua
+    </a>
+    <?php foreach ($kategori_list as $kat): ?>
+    <a href="produk.php?cat=<?= $kat['id'] ?>"
+       class="filter-chip flex-shrink-0 px-4 py-1.5 rounded-full border text-xs font-semibold transition <?= $kategori === (int)$kat['id'] ? 'active' : 'bg-white border-orange-200 text-slate-600' ?>">
+      <?= htmlspecialchars($kat['nama_kategori']) ?>
+    </a>
+    <?php endforeach; ?>
+  </div>
+
+  <!-- Tombol Tambah Kategori (kanan) -->
+  <button onclick="openModalKategori()"
+    class="flex-shrink-0 w-8 h-8 rounded-full bg-white border border-dashed border-orange-300 text-[#8e4a0e] flex items-center justify-center active:scale-90 transition"
+    title="Tambah Kategori">
+    <span class="material-symbols-rounded text-lg">add</span>
+  </button>
 </div>
 
 <!-- ====== MAIN ====== -->
@@ -312,6 +339,25 @@ body { background:#fff8f5; min-height:100dvh; }
                class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
       </div>
 
+      <!-- Kategori dengan shortcut tambah -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs font-semibold text-slate-500 block">Kategori</label>
+          <button type="button" onclick="closeModal(); openModalKategori();"
+            class="text-[11px] text-[#8e4a0e] font-semibold flex items-center gap-0.5">
+            <span class="material-symbols-rounded text-sm">add</span>
+            Kategori baru
+          </button>
+        </div>
+        <select name="category_id"
+                class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+          <option value="">— Tanpa Kategori —</option>
+          <?php foreach ($kategori_list as $kat): ?>
+          <option value="<?= $kat['id'] ?>"><?= htmlspecialchars($kat['nama_kategori']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="text-xs font-semibold text-slate-500 mb-1 block">Harga (Rp) *</label>
@@ -350,12 +396,71 @@ body { background:#fff8f5; min-height:100dvh; }
   </div>
 </div>
 
+<!-- ====== MODAL TAMBAH KATEGORI ====== -->
+<div id="modalKategori" class="hidden fixed inset-0 bg-black/50 flex items-end justify-center z-[60]"
+     onclick="if(event.target===this)closeModalKategori()">
+  <div class="bg-white w-full max-w-md rounded-t-3xl p-6 pb-10 space-y-4">
+
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-extrabold text-slate-800">Tambah Kategori</h3>
+      <button onclick="closeModalKategori()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
+        <span class="material-symbols-rounded text-slate-500 text-lg">close</span>
+      </button>
+    </div>
+
+    <form method="POST" class="space-y-4">
+
+      <!-- Preview inisial -->
+      <div class="flex justify-center">
+        <div id="katPreviewIcon"
+          class="w-16 h-16 rounded-2xl bg-orange-100 flex items-center justify-center text-2xl font-bold text-[#8e4a0e]">
+          ?
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs font-semibold text-slate-500 mb-1 block">Nama Kategori *</label>
+        <input name="nama_kategori" id="inputNamaKat" required placeholder="Contoh: Minuman Dingin"
+               oninput="updateKatPreview(this.value)"
+               class="input-field w-full border border-slate-200 bg-slate-50 rounded-xl px-4 py-3 text-sm transition">
+      </div>
+
+      <?php if (count($kategori_list) > 0): ?>
+      <div>
+        <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">Kategori yang sudah ada</p>
+        <div class="flex flex-wrap gap-1.5">
+          <?php foreach ($kategori_list as $kat): ?>
+          <span class="bg-slate-100 text-slate-600 text-[11px] px-3 py-1 rounded-full font-medium">
+            <?= htmlspecialchars($kat['nama_kategori']) ?>
+          </span>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
+
+      <button name="tambah_kategori" class="w-full bg-[#8e4a0e] hover:bg-[#7a3e0b] text-white py-3.5 rounded-2xl font-bold text-sm transition shadow-lg shadow-orange-900/20">
+        Simpan Kategori
+      </button>
+
+    </form>
+  </div>
+</div>
+
 <?php include "navbar_karyawan.php"; ?>
 
 <script>
-// ===== Modal =====
+// ===== Modal Produk =====
 function openModal(){ document.getElementById('modal').classList.remove('hidden'); }
 function closeModal(){ document.getElementById('modal').classList.add('hidden'); }
+
+// ===== Modal Kategori =====
+function openModalKategori(){ document.getElementById('modalKategori').classList.remove('hidden'); }
+function closeModalKategori(){ document.getElementById('modalKategori').classList.add('hidden'); }
+
+function updateKatPreview(val){
+  const el = document.getElementById('katPreviewIcon');
+  el.textContent = val.trim() ? val.trim().charAt(0).toUpperCase() : '?';
+}
 
 // ===== Preview foto =====
 document.getElementById('fotoInput').addEventListener('change', function(){
