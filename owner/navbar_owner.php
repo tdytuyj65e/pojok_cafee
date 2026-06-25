@@ -3,6 +3,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
 ?>
 <link rel="manifest" href="/pojok_cafe/manifest.json">
 <meta name="theme-color" content="#16a34a">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <!-- SIDEBAR DESKTOP -->
 <aside class="hidden lg:flex lg:flex-col w-64 bg-white shadow-lg fixed h-screen">
 
@@ -65,6 +67,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     <div class="p-4 border-t">
 
         <a href="../login/logout.php"
+        onclick="return konfirmasiLogout(event)"
         class="block text-center bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold">
             Logout
         </a>
@@ -78,31 +81,84 @@ $current_page = basename($_SERVER['PHP_SELF']);
 
     <div class="grid grid-cols-5 text-center">
 
-        <a href="dashboard.php" class="py-3 text-sm">
-            📊
+        <a href="dashboard.php"
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        <?= $current_page == 'dashboard.php'
+            ? 'bg-orange-500 text-white'
+            : 'hover:bg-orange-100 text-gray-700' ?>">
+            📊 
         </a>
 
-        <a href="produk.php" class="py-3 text-sm">
-            ☕
+        <a href="produk.php"
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        <?= $current_page == 'produk.php'
+            ? 'bg-orange-500 text-white'
+            : 'hover:bg-orange-100 text-gray-700' ?>">
+            ☕ 
         </a>
 
-        <a href="kategori.php" class="py-3 text-sm">
-            📂
+        <a href="karyawan.php"
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        <?= $current_page == 'karyawan.php'
+            ? 'bg-orange-500 text-white'
+            : 'hover:bg-orange-100 text-gray-700' ?>">
+            👨‍💼 
         </a>
 
-        <a href="karyawan.php" class="py-3 text-sm">
-            👨‍💼
+        <a href="laporan.php"
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        <?= $current_page == 'laporan.php'
+            ? 'bg-orange-500 text-white'
+            : 'hover:bg-orange-100 text-gray-700' ?>">
+            📈 
         </a>
 
-        <a href="profil.php" class="py-3 text-sm">
-            👤
+        <a href="profil_owner.php"
+        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        <?= $current_page == 'profil.php'
+            ? 'bg-orange-500 text-white'
+            : 'hover:bg-orange-100 text-gray-700' ?>">
+            👤 
         </a>
+
 
     </div>
+
+<div class="p-4 border-t flex justify-center">
+
+    <a href="../login/logout.php"
+       onclick="return konfirmasiLogout(event)"
+       class="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+        <span class="material-symbols-outlined text-base">logout</span>
+    </a>
+
+</div>
 
 </nav>
 <script>
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/pojok_cafe/sw.js');
+}
+
+function konfirmasiLogout(event) {
+    event.preventDefault();
+    const targetUrl = event.currentTarget.href;
+
+    Swal.fire({
+        title: 'Yakin mau logout?',
+        text: 'Kamu akan keluar dari Owner Panel.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#9ca3af',
+        confirmButtonText: 'Ya, Logout',
+        cancelButtonText: 'Batal'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            window.location.href = targetUrl;
+        }
+    });
+
+    return false;
 }
 </script>

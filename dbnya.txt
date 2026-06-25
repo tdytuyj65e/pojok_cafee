@@ -89,3 +89,42 @@ ADD foto VARCHAR(255) NULL AFTER stok;
 
 ALTER TABLE users
 ADD foto VARCHAR(255) NULL AFTER email;
+
+ALTER TABLE stock_logs
+ADD COLUMN jenis ENUM('masuk','keluar') NOT NULL DEFAULT 'masuk',
+ADD COLUMN qty INT NOT NULL DEFAULT 0;
+
+CREATE TABLE customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nama VARCHAR(100) NOT NULL,
+    no_hp VARCHAR(20),
+    alamat VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE debts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT NOT NULL,
+    transaction_id INT NOT NULL,
+    total_hutang DECIMAL(12,2) NOT NULL,
+    sisa_hutang DECIMAL(12,2) NOT NULL,
+    status ENUM('belum_lunas','lunas') DEFAULT 'belum_lunas',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+
+CREATE TABLE debt_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    debt_id INT NOT NULL,
+    jumlah_bayar DECIMAL(12,2) NOT NULL,
+    metode ENUM('cash','qris') DEFAULT 'cash',
+    tanggal DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (debt_id) REFERENCES debts(id)
+);
+
+ALTER TABLE transactions
+ADD metode_pembayaran ENUM('cash','qris') NOT NULL DEFAULT 'cash'
+AFTER kembalian;

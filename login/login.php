@@ -366,7 +366,7 @@ a:focus-visible, button:focus-visible, input:focus-visible{
 </div>
 
 <footer class="text-center py-8 text-gray-500 text-sm flex items-center justify-center gap-1.5">
-    <span>☕</span> Pojok Kafe © 2025
+    <span>☕</span> Pojok Kafe © 2026
 </footer>
 
 <script>

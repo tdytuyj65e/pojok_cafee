@@ -63,6 +63,7 @@ if (isset($_GET['hapus_kategori'])) {
 
 // Tambah Produk
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tambah') {
+
     $nama     = trim($_POST['nama_produk'] ?? '');
     $harga    = (float)($_POST['harga'] ?? 0);
     $stok     = (int)($_POST['stok'] ?? 0);
@@ -71,43 +72,212 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tamba
     $foto     = null;
 
     if (!empty($_FILES['foto']['name'])) {
+
         $ext  = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
         $foto = uniqid('prod_') . '.' . strtolower($ext);
-        move_uploaded_file($_FILES['foto']['tmp_name'], "../uploads/" . $foto);
+
+        move_uploaded_file(
+            $_FILES['foto']['tmp_name'],
+            "../uploads/" . $foto
+        );
     }
 
-    $stmt = $conn->prepare("INSERT INTO products (category_id, nama_produk, harga, stok, stok_minimum, foto) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("isdiss", $cat_id, $nama, $harga, $stok, $stok_min, $foto);
-    $stmt->execute()
-        ? $_SESSION['success'] = "Produk <strong>$nama</strong> berhasil ditambahkan."
-        : $_SESSION['error']   = "Gagal menambahkan produk.";
-    header("Location: produk.php"); exit;
+    $stmt = $conn->prepare("
+        INSERT INTO products
+        (category_id, nama_produk, harga, stok, stok_minimum, foto)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ");
+
+    $stmt->bind_param(
+        "isdiss",
+        $cat_id,
+        $nama,
+        $harga,
+        $stok,
+        $stok_min,
+        $foto
+    );
+
+    if ($stmt->execute()) {
+
+        $product_id = $conn->insert_id;
+
+        if ($stok > 0) {
+
+            $stok_lama = 0;
+            $stok_baru = $stok;
+            $qty       = $stok;
+            $jenis     = 'masuk';
+            $ket       = 'Stok awal produk baru';
+
+            $log = $conn->prepare("
+                INSERT INTO stock_logs
+                (product_id, stok_lama, stok_baru, qty, jenis, keterangan, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            $log->bind_param(
+                "iiiiss",
+                $product_id,
+                $stok_lama,
+                $stok_baru,
+                $qty,
+                $jenis,
+                $ket
+            );
+
+            $log->execute();
+        }
+
+        $_SESSION['success'] =
+            "Produk <strong>$nama</strong> berhasil ditambahkan.";
+
+    } else {
+
+        $_SESSION['error'] =
+            "Gagal menambahkan produk.";
+    }
+
+    header("Location: produk.php");
+    exit;
+}
+
+// Tambah Stok (restock manual)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tambah_stok') {
+
+    $id  = (int)($_POST['id'] ?? 0);
+    $qty = (int)($_POST['qty_tambah'] ?? 0);
+
+    if ($id > 0 && $qty > 0) {
+
+        $old = $conn->query("SELECT stok, nama_produk FROM products WHERE id = $id")->fetch_assoc();
+
+        if ($old) {
+            $stok_lama = (int)$old['stok'];
+            $stok_baru = $stok_lama + $qty;
+
+            $upd = $conn->prepare("UPDATE products SET stok = ? WHERE id = ?");
+            $upd->bind_param("ii", $stok_baru, $id);
+            $upd->execute();
+
+            $ket = 'Penambahan stok manual';
+
+            $log = $conn->prepare("
+                INSERT INTO stock_logs
+                (product_id, stok_lama, stok_baru, qty, jenis, keterangan, created_at)
+                VALUES (?, ?, ?, ?, 'masuk', ?, NOW())
+            ");
+            $log->bind_param("iiiis", $id, $stok_lama, $stok_baru, $qty, $ket);
+if(!$log->execute()){
+    $_SESSION['error'] = $log->error;
+} else {
+    $_SESSION['success'] =
+        "DEBUG => ID:$id | QTY:$qty | Lama:$stok_lama | Baru:$stok_baru";
+}
+        }
+    } else {
+        $_SESSION['error'] = "Jumlah stok harus lebih dari 0.";
+    }
+
+    header("Location: produk.php");
+    exit;
 }
 
 // Edit Produk
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'edit') {
+
     $id       = (int)$_POST['id'];
     $nama     = trim($_POST['nama_produk'] ?? '');
     $harga    = (float)($_POST['harga'] ?? 0);
-    $stok     = (int)($_POST['stok'] ?? 0);
-    $stok_min = (int)($_POST['stok_minimum'] ?? 5);
+    $stok     = (int)$_POST['stok'] ?? 0;
+    $stok_min = (int)$_POST['stok_minimum'] ?? 5;
     $cat_id   = (int)($_POST['category_id'] ?? 0) ?: null;
 
-    $old  = $conn->query("SELECT foto FROM products WHERE id = $id")->fetch_assoc();
-    $foto = $old['foto'];
+    $old = $conn->query("
+        SELECT foto, stok
+        FROM products
+        WHERE id = $id
+    ")->fetch_assoc();
+
+    $foto      = $old['foto'];
+    $stok_lama = (int)$old['stok'];
 
     if (!empty($_FILES['foto']['name'])) {
+
         $ext  = pathinfo($_FILES['foto']['name'], PATHINFO_EXTENSION);
         $foto = uniqid('prod_') . '.' . strtolower($ext);
-        move_uploaded_file($_FILES['foto']['tmp_name'], "../uploads/" . $foto);
+
+        move_uploaded_file(
+            $_FILES['foto']['tmp_name'],
+            "../uploads/" . $foto
+        );
     }
 
-    $stmt = $conn->prepare("UPDATE products SET category_id=?, nama_produk=?, harga=?, stok=?, stok_minimum=?, foto=? WHERE id=?");
-    $stmt->bind_param("isdiisi", $cat_id, $nama, $harga, $stok, $stok_min, $foto, $id);
-    $stmt->execute()
-        ? $_SESSION['success'] = "Produk <strong>$nama</strong> berhasil diperbarui."
-        : $_SESSION['error']   = "Gagal memperbarui produk.";
-    header("Location: produk.php"); exit;
+    $stmt = $conn->prepare("
+        UPDATE products
+        SET
+            category_id=?,
+            nama_produk=?,
+            harga=?,
+            stok=?,
+            stok_minimum=?,
+            foto=?
+        WHERE id=?
+    ");
+
+    $stmt->bind_param(
+        "isdiisi",
+        $cat_id,
+        $nama,
+        $harga,
+        $stok,
+        $stok_min,
+        $foto,
+        $id
+    );
+
+    if ($stmt->execute()) {
+
+        if ($stok != $stok_lama) {
+
+            $selisih = abs($stok - $stok_lama);
+
+            $jenis = ($stok > $stok_lama)
+                ? 'masuk'
+                : 'keluar';
+
+            $ket = 'Penyesuaian stok produk';
+
+            $log = $conn->prepare("
+                INSERT INTO stock_logs
+                (product_id, stok_lama, stok_baru, qty, jenis, keterangan, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ");
+
+            $log->bind_param(
+                "iiiiss",
+                $id,
+                $stok_lama,
+                $stok,
+                $selisih,
+                $jenis,
+                $ket
+            );
+
+            $log->execute();
+        }
+
+        $_SESSION['success'] =
+            "Produk <strong>$nama</strong> berhasil diperbarui.";
+
+    } else {
+
+        $_SESSION['error'] =
+            "Gagal memperbarui produk.";
+    }
+
+    header("Location: produk.php");
+    exit;
 }
 
 if (isset($_GET['hapus'])) {
@@ -432,23 +602,28 @@ $tab = $_GET['tab'] ?? 'produk';
         </div>
 
         <!-- Actions -->
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="bukaTambahStok(<?= $p['id'] ?>, '<?= htmlspecialchars(addslashes($p['nama_produk'])) ?>', <?= $p['stok'] ?>)"
+            class="flex items-center justify-center gap-1 bg-green-50 hover:bg-green-100 text-green-600 font-semibold py-2.5 rounded-xl text-sm transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            Stok
+          </button>
+
           <button onclick="bukaEdit(<?= htmlspecialchars(json_encode($p)) ?>)"
-            class="flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold py-2.5 rounded-xl text-sm transition">
+            class="flex items-center justify-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold py-2.5 rounded-xl text-sm transition">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5m-1.414-9.414a2 2 0 1 1 2.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
             Edit
           </button>
-<a href="#" 
-   onclick="confirmHapus(<?= $p['id'] ?>); return false;"
-   class="flex items-center justify-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm transition">
-  
-  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-      d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/>
-  </svg>
 
-  Hapus
-</a>
+          <a href="#"
+             onclick="confirmHapus(<?= $p['id'] ?>); return false;"
+             class="flex items-center justify-center gap-1 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-2.5 rounded-xl text-sm transition">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16"/>
+            </svg>
+            Hapus
+          </a>
         </div>
       </div>
     </div>
@@ -740,13 +915,67 @@ $tab = $_GET['tab'] ?? 'produk';
             <input type="number" name="stok_minimum" id="edit-stok-min" min="0" class="form-input-blue w-full border border-gray-200 rounded-xl px-4 py-3 text-sm bg-gray-50 transition">
           </div>
         </div>
-        <p class="text-xs text-gray-400">Notifikasi muncul saat stok ≤ stok minimum.</p>
+        <p class="text-xs text-gray-400">Pakai field ini hanya untuk koreksi data. Untuk menambah stok harian, gunakan tombol <strong>"Stok"</strong> di kartu produk.</p>
 
       </div>
 
       <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex gap-3 flex-shrink-0">
         <button type="button" onclick="tutupPanel('edit')" class="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-100 transition text-sm">Batal</button>
         <button type="submit" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-sm">Simpan Perubahan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     PANEL: TAMBAH STOK
+============================================================ -->
+<div id="panel-tambah-stok" class="panel-overlay fixed inset-0 z-50 flex justify-end">
+  <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onclick="tutupPanel('tambah-stok')"></div>
+  <div class="panel-drawer relative bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl flex flex-col">
+
+    <div class="bg-gradient-to-r from-green-500 to-teal-500 px-6 py-5 text-white flex items-center justify-between flex-shrink-0">
+      <div>
+        <p class="text-green-100 text-xs uppercase tracking-widest">Restock</p>
+        <h2 class="text-xl font-bold mt-0.5">Tambah Stok</h2>
+      </div>
+      <button onclick="tutupPanel('tambah-stok')" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+
+    <form method="POST" class="flex-1 flex flex-col">
+      <input type="hidden" name="action" value="tambah_stok">
+      <input type="hidden" name="id" id="stok-id">
+
+      <div class="p-6 flex-1 space-y-5">
+
+        <div class="bg-gray-50 rounded-2xl p-4 text-center">
+          <p class="text-sm text-gray-400">Produk</p>
+          <p id="stok-nama-produk" class="font-bold text-gray-800 text-lg">-</p>
+          <p class="text-sm text-gray-400 mt-2">Stok saat ini</p>
+          <p id="stok-sekarang" class="font-bold text-green-600 text-2xl">0 unit</p>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1.5">
+            Jumlah Stok yang Ditambahkan <span class="text-red-400">*</span>
+          </label>
+          <input type="number" name="qty_tambah" id="stok-qty" required min="1" placeholder="Contoh: 20"
+            class="form-input-green w-full border border-gray-200 rounded-xl px-4 py-3 text-base font-semibold bg-gray-50 transition">
+          <p class="text-xs text-gray-400 mt-1.5">Masukkan jumlah barang masuk, bukan total stok akhir.</p>
+        </div>
+
+        <div class="bg-green-50 border border-green-100 rounded-xl px-4 py-3 text-sm text-green-700">
+          Stok akan otomatis ditambahkan ke jumlah yang ada dan tercatat sebagai <strong>barang masuk</strong> di laporan.
+        </div>
+
+      </div>
+
+      <div class="px-6 py-4 border-t border-gray-100 bg-gray-50/60 flex gap-3 flex-shrink-0">
+        <button type="button" onclick="tutupPanel('tambah-stok')" class="flex-1 border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl hover:bg-gray-100 transition text-sm">Batal</button>
+        <button type="submit" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition text-sm shadow-sm">Tambah Stok</button>
       </div>
     </form>
   </div>
@@ -896,7 +1125,7 @@ function tutupPanel(name) {
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    ['tambah','edit','tambah-kat','edit-kat'].forEach(tutupPanel);
+    ['tambah','edit','tambah-kat','edit-kat','tambah-stok'].forEach(tutupPanel);
   }
 });
 
@@ -941,6 +1170,15 @@ function bukaEdit(p) {
   bukaPanel('edit');
 }
 
+/* ===== Tambah Stok ===== */
+function bukaTambahStok(id, nama, stokSekarang) {
+  document.getElementById('stok-id').value = id;
+  document.getElementById('stok-nama-produk').textContent = nama;
+  document.getElementById('stok-sekarang').textContent = stokSekarang + ' unit';
+  document.getElementById('stok-qty').value = '';
+  bukaPanel('tambah-stok');
+}
+
 /* ===== Edit Kategori ===== */
 function bukaEditKategori(id, nama) {
   document.getElementById('edit-kat-id').value   = id;
@@ -957,32 +1195,6 @@ function updateKatPreview(val) {
 function updateKatEditPreview(val) {
   const el = document.getElementById('kat-edit-icon');
   el.textContent = val.trim() ? val.trim().charAt(0).toUpperCase() : '?';
-}
-
-
-</script>
-<script>
-function bukaPanel(name) {
-  document.getElementById('panel-' + name).classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function tutupPanel(name) {
-  document.getElementById('panel-' + name).classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-function previewFoto(input, previewId, placeholderId) {
-  if (!input.files || !input.files[0]) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = document.getElementById(previewId);
-    const ph  = document.getElementById(placeholderId);
-    img.src = e.target.result;
-    img.style.opacity = '1';
-    ph.style.display = 'none';
-  };
-  reader.readAsDataURL(input.files[0]);
 }
 
 function confirmHapus(id) {

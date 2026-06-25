@@ -62,21 +62,33 @@ if (isset($_POST['bayar'])) {
         $errorBayar = "Keranjang masih kosong!";
     } else {
 
-        $totalBayar  = 0;
-        foreach ($_SESSION['cart'] as $item) $totalBayar += $item['subtotal'];
+        $totalBayar = 0;
+        foreach ($_SESSION['cart'] as $item) {
+            $totalBayar += $item['subtotal'];
+        }
 
-        $uangTunai  = (float) ($_POST['uang_tunai'] ?? 0);
-        $kembalian  = $uangTunai - $totalBayar;
+        $uangTunai = (float) ($_POST['uang_tunai'] ?? 0);
+        $kembalian = $uangTunai - $totalBayar;
 
         if ($uangTunai < $totalBayar) {
             $errorBayar = "Uang tunai kurang dari total belanja!";
         } else {
 
-            // Cek stok sekali lagi (double-check)
+            // Cek stok
             foreach ($_SESSION['cart'] as $pid => $item) {
-                $r = mysqli_fetch_assoc(mysqli_query($conn, "SELECT stok, nama_produk FROM products WHERE id=$pid"));
-                if (!$r || $r['stok'] < $item['qty']) {
-                    $errorBayar = "Stok " . htmlspecialchars($r['nama_produk'] ?? "produk") . " tidak mencukupi!";
+
+                $cekProduk = mysqli_fetch_assoc(
+                    mysqli_query(
+                        $conn,
+                        "SELECT stok,nama_produk FROM products WHERE id=$pid"
+                    )
+                );
+
+                if (!$cekProduk || $cekProduk['stok'] < $item['qty']) {
+                    $errorBayar =
+                        "Stok " .
+                        htmlspecialchars($cekProduk['nama_produk'] ?? 'Produk') .
+                        " tidak mencukupi!";
                     break;
                 }
             }
@@ -84,66 +96,147 @@ if (isset($_POST['bayar'])) {
             if (empty($errorBayar)) {
 
                 mysqli_begin_transaction($conn);
-                try {
-                    // Buat kode transaksi unik
-                    $kode = 'TRX-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
 
-                    $stmtTrx = mysqli_prepare($conn,
-                        "INSERT INTO transactions (kode_transaksi, user_id, total, uang_diterima, kembalian, tanggal) VALUES (?,?,?,?,?,NOW())"
+                try {
+
+                    // Kode transaksi
+                    $kode =
+                        'TRX-' .
+                        date('Ymd') .
+                        '-' .
+                        strtoupper(substr(uniqid(), -5));
+
+                    // Simpan transaksi
+                    $stmtTrx = mysqli_prepare(
+                        $conn,
+                        "INSERT INTO transactions
+                        (kode_transaksi,user_id,total,uang_diterima,kembalian,tanggal)
+                        VALUES (?,?,?,?,?,NOW())"
                     );
-                    mysqli_stmt_bind_param($stmtTrx, "siddd", $kode, $user_id, $totalBayar, $uangTunai, $kembalian);
+
+                    mysqli_stmt_bind_param(
+                        $stmtTrx,
+                        "siddd",
+                        $kode,
+                        $user_id,
+                        $totalBayar,
+                        $uangTunai,
+                        $kembalian
+                    );
+
                     mysqli_stmt_execute($stmtTrx);
+
                     $trxId = mysqli_insert_id($conn);
 
+                    // Simpan detail
                     foreach ($_SESSION['cart'] as $pid => $item) {
-                        $qty      = (int)   $item['qty'];
+
+                        $qty      = (int) $item['qty'];
                         $harga    = (float) $item['harga'];
                         $subtotal = (float) $item['subtotal'];
 
-                        // Insert detail transaksi (kolom: harga_satuan sesuai schema DB)
-                        $stmtDet = mysqli_prepare($conn,
-                            "INSERT INTO transaction_details (transaction_id, product_id, qty, harga_satuan, subtotal) VALUES (?,?,?,?,?)"
+                        // Ambil stok lama
+                        $produk = mysqli_fetch_assoc(
+                            mysqli_query(
+                                $conn,
+                                "SELECT stok FROM products WHERE id=$pid"
+                            )
                         );
-                        mysqli_stmt_bind_param($stmtDet, "iiddd", $trxId, $pid, $qty, $harga, $subtotal);
+
+                        $stokLama = (int) $produk['stok'];
+
+                        // Simpan detail transaksi
+                        $stmtDet = mysqli_prepare(
+                            $conn,
+                            "INSERT INTO transaction_details
+                            (transaction_id,product_id,qty,harga_satuan,subtotal)
+                            VALUES (?,?,?,?,?)"
+                        );
+
+                        mysqli_stmt_bind_param(
+                            $stmtDet,
+                            "iiddd",
+                            $trxId,
+                            $pid,
+                            $qty,
+                            $harga,
+                            $subtotal
+                        );
+
                         mysqli_stmt_execute($stmtDet);
 
-                        // Kurangi stok
-                        mysqli_query($conn, "UPDATE products SET stok = stok - $qty WHERE id = $pid");
-
-                        // Log stok
-                        $stokBaru = (int) mysqli_fetch_assoc(mysqli_query($conn, "SELECT stok FROM products WHERE id=$pid"))['stok'];
-                        $stokLama = $stokBaru + $qty;
-                        $ket      = "Terjual via transaksi $kode";
-                        $stmtLog  = mysqli_prepare($conn,
-                            "INSERT INTO stock_logs (product_id, stok_lama, stok_baru, keterangan) VALUES (?,?,?,?)"
+                        // Update stok
+                        mysqli_query(
+                            $conn,
+                            "UPDATE products
+                             SET stok = stok - $qty
+                             WHERE id = $pid"
                         );
-                        mysqli_stmt_bind_param($stmtLog, "iiis", $pid, $stokLama, $stokBaru, $ket);
-                        mysqli_stmt_execute($stmtLog);
+
+                        // Ambil stok baru
+                        $produkBaru = mysqli_fetch_assoc(
+                            mysqli_query(
+                                $conn,
+                                "SELECT stok FROM products WHERE id=$pid"
+                            )
+                        );
+
+                        $stokBaru = (int) $produkBaru['stok'];
+
+                        // Simpan log stok keluar
+                        $jenis = "keluar";
+                        $ket   = "Terjual via transaksi $kode";
+
+                        $stmtLog = mysqli_prepare(
+                            $conn,
+                            "INSERT INTO stock_logs
+                            (product_id,jenis,qty,stok_lama,stok_baru,keterangan)
+                            VALUES (?,?,?,?,?,?)"
+                        );
+
+                        mysqli_stmt_bind_param(
+                            $stmtLog,
+                            "isiiis",
+                            $pid,
+                            $jenis,
+                            $qty,
+                            $stokLama,
+                            $stokBaru,
+                            $ket
+                        );
+
+                        if (!mysqli_stmt_execute($stmtLog)) {
+                            throw new Exception(mysqli_stmt_error($stmtLog));
+                        }
                     }
 
                     mysqli_commit($conn);
 
                     $_SESSION['trx_sukses'] = [
-                        'kode'      => $kode,
-                        'total'     => $totalBayar,
-                        'bayar'     => $uangTunai,
-                        'kembalian' => $kembalian,
-                        'items'     => count($_SESSION['cart']),
+                        'kode'       => $kode,
+                        'total'      => $totalBayar,
+                        'bayar'      => $uangTunai,
+                        'kembalian'  => $kembalian,
+                        'items'      => count($_SESSION['cart'])
                     ];
+
                     unset($_SESSION['cart']);
 
                     header("Location: transaksi.php");
                     exit;
 
                 } catch (Exception $e) {
+
                     mysqli_rollback($conn);
-                    $errorBayar = "Terjadi kesalahan, transaksi dibatalkan.";
+
+                    $errorBayar =
+                        "Transaksi gagal: " .
+                        $e->getMessage();
                 }
             }
         }
     }
 }
-
 /* ===== FLASH SUKSES ===== */
 $trxSukses = $_SESSION['trx_sukses'] ?? null;
 unset($_SESSION['trx_sukses']);

@@ -137,6 +137,27 @@ $growth = $prev_total > 0 ? (($total_penjualan - $prev_total) / $prev_total * 10
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           Print
         </button>
+<div class="flex gap-3 items-center">
+
+    <select id="periode"
+        onchange="gantiPeriode(this.value)"
+        class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm">
+
+        <option value="">Pilih Periode</option>
+        <option value="hari">Hari Ini</option>
+        <option value="minggu">Minggu Ini</option>
+        <option value="bulan">Bulan Ini</option>
+        <option value="tahun">Tahun Ini</option>
+
+    </select>
+
+    <a id="btnExcel"
+        href="export_excel_produk.php?dari=<?= $dari ?>&sampai=<?= $sampai ?>"
+        class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl font-semibold">
+        📊 Download Excel
+    </a>
+
+</div>
       </div>
     </div>
   </div>
@@ -472,7 +493,45 @@ new Chart(document.getElementById('chartHarian'), {
 });
 <?php endif; ?>
 </script>
+<script>
+function gantiPeriode(periode) {
 
+    let hariIni = new Date();
+
+    let dari = '';
+    let sampai = '';
+
+    if (periode === 'hari') {
+
+        dari = sampai = hariIni.toISOString().split('T')[0];
+
+    } else if (periode === 'minggu') {
+
+        let awal = new Date(hariIni);
+        awal.setDate(hariIni.getDate() - hariIni.getDay() + 1);
+
+        dari = awal.toISOString().split('T')[0];
+        sampai = hariIni.toISOString().split('T')[0];
+
+    } else if (periode === 'bulan') {
+
+        dari = hariIni.getFullYear() + '-'
+             + String(hariIni.getMonth()+1).padStart(2,'0')
+             + '-01';
+
+        sampai = hariIni.toISOString().split('T')[0];
+
+    } else if (periode === 'tahun') {
+
+        dari = hariIni.getFullYear() + '-01-01';
+        sampai = hariIni.getFullYear() + '-12-31';
+
+    }
+
+    document.getElementById('btnExcel').href =
+        `export_excel_produk.php?dari=${dari}&sampai=${sampai}`;
+}
+</script>
 <script>
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/pojok_cafe/sw.js');
