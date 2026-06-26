@@ -309,10 +309,7 @@ body { background:#fff8f5; min-height:100dvh; }
 </main>
 
 <!-- ====== FAB TAMBAH PRODUK ====== -->
-<button onclick="openModal()"
-        class="fixed bottom-24 right-4 z-40 w-14 h-14 bg-[#8e4a0e] text-white rounded-2xl flex items-center justify-center shadow-xl active:scale-95 transition">
-  <span class="material-symbols-rounded text-2xl">add</span>
-</button>
+
 
 <!-- ====== TOAST ====== -->
 <div id="toast"
