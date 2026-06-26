@@ -102,10 +102,48 @@ for ($i = 0; $i < 7; $i++) {
     $grafik_values[] = $r['total'];
 }
 
+/* =========================
+   ORANG YANG BERHUTANG
+   Filter status terpisah dari filter periode di atas, karena
+   hutang yang masih berjalan bisa berasal dari transaksi kapan saja.
+========================= */
+$statusHutang = $_GET['status_hutang'] ?? 'belum_lunas';
+
+$filterHutang = "1=1";
+if ($statusHutang === 'belum_lunas' || $statusHutang === 'lunas') {
+    $statusHutangSafe = mysqli_real_escape_string($conn, $statusHutang);
+    $filterHutang = "d.status = '$statusHutangSafe'";
+}
+
+$qhutang = mysqli_query($conn, "
+    SELECT c.nama, c.no_hp, d.total_hutang, d.sisa_hutang, d.status
+    FROM debts d
+    JOIN customers c ON c.id = d.customer_id
+    WHERE $filterHutang
+    ORDER BY d.sisa_hutang DESC, c.nama ASC
+");
+
+$daftar_hutang  = [];
+$total_piutang  = 0;
+while ($h = mysqli_fetch_assoc($qhutang)) {
+    $daftar_hutang[] = $h;
+    $total_piutang  += (float)$h['sisa_hutang'];
+}
+
 /* helper kecil untuk query string filter yang konsisten di semua link */
 function pk_filterUrl($periode, $search, $extra = []) {
     $params = array_merge(['periode' => $periode, 'q' => $search], $extra);
     $params = array_filter($params, fn($v) => $v !== '' && $v !== null);
+    return '?' . http_build_query($params);
+}
+
+/* helper khusus untuk link filter status hutang, tetap bawa periode & q saat ini */
+function pk_hutangUrl($statusHutang, $periode, $search) {
+    $params = array_filter([
+        'periode'       => $periode,
+        'q'             => $search,
+        'status_hutang' => $statusHutang,
+    ], fn($v) => $v !== '' && $v !== null);
     return '?' . http_build_query($params);
 }
 ?>
@@ -397,6 +435,81 @@ function pk_filterUrl($periode, $search, $extra = []) {
         </div>
         <?php endforeach; ?>
     </div>
+</div>
+
+<!-- ORANG YANG BERHUTANG -->
+<div class="bg-white p-4 rounded-xl card-shadow">
+    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <h2 class="font-bold text-on-surface flex items-center gap-2">
+            <span class="material-symbols-outlined text-error text-[20px]">credit_card</span>
+            Orang yang Berhutang
+        </h2>
+
+        <div class="flex gap-2">
+            <?php
+            $opsiHutang = [
+                'belum_lunas' => 'Belum Lunas',
+                'lunas'       => 'Lunas',
+                'semua'       => 'Semua',
+            ];
+            foreach ($opsiHutang as $key => $label):
+                $isActive = $statusHutang === $key
+                    || ($key === 'semua' && !in_array($statusHutang, ['belum_lunas','lunas']));
+            ?>
+            <a href="<?= pk_hutangUrl($key, $periode, $search) ?>"
+               class="filter-chip <?= $isActive ? 'active' : '' ?> px-3 py-1 border border-outline-variant bg-white rounded-full text-xs whitespace-nowrap flex-shrink-0">
+                <?= $label ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <?php if ($statusHutang === 'belum_lunas' || !in_array($statusHutang, ['belum_lunas','lunas'], true) === false): ?>
+    <?php endif; ?>
+
+    <?php if ($statusHutang !== 'lunas'): ?>
+    <div class="bg-error-container/40 rounded-lg px-4 py-2.5 mb-3 flex items-center justify-between">
+        <span class="text-xs text-on-surface-variant">Total Piutang Ditampilkan</span>
+        <b class="text-sm text-error">Rp <?= number_format($total_piutang,0,',','.') ?></b>
+    </div>
+    <?php endif; ?>
+
+    <?php if (empty($daftar_hutang)): ?>
+        <p class="text-sm text-on-surface-variant py-4 text-center">Tidak ada data hutang untuk filter ini.</p>
+    <?php else: ?>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[480px]">
+            <thead>
+                <tr class="border-b border-outline-variant text-left text-on-surface-variant">
+                    <th class="py-2 font-medium">Nama</th>
+                    <th class="py-2 font-medium">No HP</th>
+                    <th class="py-2 font-medium text-right">Total Hutang</th>
+                    <th class="py-2 font-medium text-right">Sisa Hutang</th>
+                    <th class="py-2 font-medium text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($daftar_hutang as $h): ?>
+                <tr class="border-b border-outline-variant/60">
+                    <td class="py-2.5 font-medium text-on-surface"><?= htmlspecialchars($h['nama']) ?></td>
+                    <td class="py-2.5 text-on-surface-variant"><?= htmlspecialchars($h['no_hp'] ?: '-') ?></td>
+                    <td class="py-2.5 text-right text-on-surface-variant">Rp <?= number_format($h['total_hutang'],0,',','.') ?></td>
+                    <td class="py-2.5 text-right font-semibold <?= $h['sisa_hutang'] > 0 ? 'text-error' : 'text-on-surface-variant' ?>">
+                        Rp <?= number_format($h['sisa_hutang'],0,',','.') ?>
+                    </td>
+                    <td class="py-2.5 text-center">
+                        <?php if ($h['status'] === 'lunas'): ?>
+                            <span class="bg-green-100 text-green-700 text-[11px] font-semibold px-2.5 py-1 rounded-full">Lunas</span>
+                        <?php else: ?>
+                            <span class="bg-error-container text-error text-[11px] font-semibold px-2.5 py-1 rounded-full">Belum Lunas</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
 </div>
 
 <!-- TRANSAKSI -->

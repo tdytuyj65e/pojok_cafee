@@ -155,6 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'tamba
         if ($old) {
             $stok_lama = (int)$old['stok'];
             $stok_baru = $stok_lama + $qty;
+            $nama_produk = $old['nama_produk'];
 
             $upd = $conn->prepare("UPDATE products SET stok = ? WHERE id = ?");
             $upd->bind_param("ii", $stok_baru, $id);
@@ -172,7 +173,11 @@ if(!$log->execute()){
     $_SESSION['error'] = $log->error;
 } else {
     $_SESSION['success'] =
-        "DEBUG => ID:$id | QTY:$qty | Lama:$stok_lama | Baru:$stok_baru";
+        "Sukses! Stok barang berhasil ditambahkan | " .
+        "Produk: $nama_produk | " .
+        "Qty: $qty | " .
+        "Stok Lama: $stok_lama | " .
+        "Stok Baru: $stok_baru";
 }
         }
     } else {

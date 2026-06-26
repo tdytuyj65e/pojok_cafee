@@ -128,3 +128,9 @@ CREATE TABLE debt_payments (
 ALTER TABLE transactions
 ADD metode_pembayaran ENUM('cash','qris') NOT NULL DEFAULT 'cash'
 AFTER kembalian;
+
+ALTER TABLE transactions
+MODIFY uang_diterima DECIMAL(12,2) DEFAULT 0;
+
+ALTER TABLE transactions
+MODIFY kembalian DECIMAL(12,2) DEFAULT 0;
