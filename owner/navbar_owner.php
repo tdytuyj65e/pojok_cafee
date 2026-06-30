@@ -77,62 +77,63 @@ $current_page = basename($_SERVER['PHP_SELF']);
 </aside>
 
 <!-- NAVBAR MOBILE -->
-<nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50">
+<nav class="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-50 pb-[env(safe-area-inset-bottom)]">
 
-    <div class="grid grid-cols-5 text-center">
+    <div class="grid grid-cols-6 text-center">
 
         <a href="dashboard.php"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition
         <?= $current_page == 'dashboard.php'
-            ? 'bg-orange-500 text-white'
-            : 'hover:bg-orange-100 text-gray-700' ?>">
-            📊 
+            ? 'text-orange-600'
+            : 'text-gray-500 active:text-orange-500' ?>">
+            <span class="text-xl leading-none">📊</span>
+            <span class="text-[10px] font-medium leading-none">Dashboard</span>
         </a>
 
         <a href="produk.php"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition
         <?= $current_page == 'produk.php'
-            ? 'bg-orange-500 text-white'
-            : 'hover:bg-orange-100 text-gray-700' ?>">
-            ☕ 
+            ? 'text-orange-600'
+            : 'text-gray-500 active:text-orange-500' ?>">
+            <span class="text-xl leading-none">☕</span>
+            <span class="text-[10px] font-medium leading-none">Produk</span>
         </a>
 
         <a href="karyawan.php"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition
         <?= $current_page == 'karyawan.php'
-            ? 'bg-orange-500 text-white'
-            : 'hover:bg-orange-100 text-gray-700' ?>">
-            👨‍💼 
+            ? 'text-orange-600'
+            : 'text-gray-500 active:text-orange-500' ?>">
+            <span class="text-xl leading-none">👨‍💼</span>
+            <span class="text-[10px] font-medium leading-none">Karyawan</span>
         </a>
 
         <a href="laporan.php"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition
         <?= $current_page == 'laporan.php'
-            ? 'bg-orange-500 text-white'
-            : 'hover:bg-orange-100 text-gray-700' ?>">
-            📈 
+            ? 'text-orange-600'
+            : 'text-gray-500 active:text-orange-500' ?>">
+            <span class="text-xl leading-none">📈</span>
+            <span class="text-[10px] font-medium leading-none">Laporan</span>
         </a>
 
         <a href="profil_owner.php"
-        class="flex items-center gap-3 px-4 py-3 rounded-xl transition
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition
         <?= $current_page == 'profil.php'
-            ? 'bg-orange-500 text-white'
-            : 'hover:bg-orange-100 text-gray-700' ?>">
-            👤 
+            ? 'text-orange-600'
+            : 'text-gray-500 active:text-orange-500' ?>">
+            <span class="text-xl leading-none">👤</span>
+            <span class="text-[10px] font-medium leading-none">Profil</span>
         </a>
 
+        <a href="../login/logout.php"
+        onclick="return konfirmasiLogout(event)"
+        class="flex flex-col items-center justify-center gap-0.5 py-2 transition text-red-500 active:text-red-700">
+            <span class="text-xl leading-none">🚪</span>
+            <span class="text-[10px] font-medium leading-none">Logout</span>
+        </a>
 
     </div>
-
-<div class="p-4 border-t flex justify-center">
-
-    <a href="../login/logout.php"
-       onclick="return konfirmasiLogout(event)"
-       class="inline-flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
-        <span class="material-symbols-outlined text-base">logout</span>
-    </a>
-
-</div>
 
 </nav>
 <script>
