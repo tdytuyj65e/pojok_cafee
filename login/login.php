@@ -35,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['nama'] = $user['nama_lengkap'];
                 $_SESSION['role_id'] = $user['role_id'];
 
-                // ================= REDIRECT =================
+               
                 if ($user['role_id'] == 1) {
                     header("Location: ../owner/dashboard.php");
                 } else {
