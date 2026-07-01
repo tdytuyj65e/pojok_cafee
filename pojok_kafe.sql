@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Waktu pembuatan: 29 Jun 2026 pada 18.16
+-- Waktu pembuatan: 01 Jul 2026 pada 08.03
 -- Versi server: 10.4.32-MariaDB
 -- Versi PHP: 8.2.12
 
@@ -20,6 +20,8 @@ SET time_zone = "+00:00";
 --
 -- Database: `pojok_kafe`
 --
+CREATE DATABASE IF NOT EXISTS `pojok_kafe` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `pojok_kafe`;
 
 -- --------------------------------------------------------
 
@@ -27,6 +29,7 @@ SET time_zone = "+00:00";
 -- Struktur dari tabel `categories`
 --
 
+DROP TABLE IF EXISTS `categories`;
 CREATE TABLE `categories` (
   `id` int(11) NOT NULL,
   `nama_kategori` varchar(100) NOT NULL,
@@ -47,6 +50,7 @@ INSERT INTO `categories` (`id`, `nama_kategori`, `created_at`) VALUES
 -- Struktur dari tabel `customers`
 --
 
+DROP TABLE IF EXISTS `customers`;
 CREATE TABLE `customers` (
   `id` int(11) NOT NULL,
   `nama` varchar(100) NOT NULL,
@@ -68,6 +72,7 @@ INSERT INTO `customers` (`id`, `nama`, `no_hp`, `alamat`, `created_at`) VALUES
 -- Struktur dari tabel `debts`
 --
 
+DROP TABLE IF EXISTS `debts`;
 CREATE TABLE `debts` (
   `id` int(11) NOT NULL,
   `customer_id` int(11) NOT NULL,
@@ -91,6 +96,7 @@ INSERT INTO `debts` (`id`, `customer_id`, `transaction_id`, `total_hutang`, `sis
 -- Struktur dari tabel `debt_payments`
 --
 
+DROP TABLE IF EXISTS `debt_payments`;
 CREATE TABLE `debt_payments` (
   `id` int(11) NOT NULL,
   `debt_id` int(11) NOT NULL,
@@ -112,6 +118,7 @@ INSERT INTO `debt_payments` (`id`, `debt_id`, `jumlah_bayar`, `metode`, `tanggal
 -- Struktur dari tabel `products`
 --
 
+DROP TABLE IF EXISTS `products`;
 CREATE TABLE `products` (
   `id` int(11) NOT NULL,
   `category_id` int(11) DEFAULT NULL,
@@ -151,6 +158,7 @@ INSERT INTO `products` (`id`, `category_id`, `nama_produk`, `harga`, `stok`, `fo
 -- Struktur dari tabel `roles`
 --
 
+DROP TABLE IF EXISTS `roles`;
 CREATE TABLE `roles` (
   `id` int(11) NOT NULL,
   `name` varchar(50) NOT NULL
@@ -170,6 +178,7 @@ INSERT INTO `roles` (`id`, `name`) VALUES
 -- Struktur dari tabel `stock_logs`
 --
 
+DROP TABLE IF EXISTS `stock_logs`;
 CREATE TABLE `stock_logs` (
   `id` int(11) NOT NULL,
   `product_id` int(11) NOT NULL,
@@ -211,6 +220,7 @@ INSERT INTO `stock_logs` (`id`, `product_id`, `stok_lama`, `stok_baru`, `keteran
 -- Struktur dari tabel `transactions`
 --
 
+DROP TABLE IF EXISTS `transactions`;
 CREATE TABLE `transactions` (
   `id` int(11) NOT NULL,
   `kode_transaksi` varchar(30) DEFAULT NULL,
@@ -236,6 +246,7 @@ INSERT INTO `transactions` (`id`, `kode_transaksi`, `user_id`, `total`, `uang_di
 -- Struktur dari tabel `transaction_details`
 --
 
+DROP TABLE IF EXISTS `transaction_details`;
 CREATE TABLE `transaction_details` (
   `id` int(11) NOT NULL,
   `transaction_id` int(11) NOT NULL,
@@ -259,6 +270,7 @@ INSERT INTO `transaction_details` (`id`, `transaction_id`, `product_id`, `qty`, 
 -- Struktur dari tabel `users`
 --
 
+DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` int(11) NOT NULL,
   `role_id` int(11) NOT NULL,
