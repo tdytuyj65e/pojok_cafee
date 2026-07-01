@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Offline | Pojok Kafe</title>
+<meta name="theme-color" content="#D97732">
+
+<style>
+:root{
+    --espresso:#3C2415;
+    --espresso-dark:#2A1810;
+    --terracotta:#D97732;
+    --terracotta-dark:#C0601E;
+    --cream:#FDF6EE;
+    --gold:#C9A227;
+    --ok:#22c55e;
+    --err:#e2513d;
+}
+
+*{ box-sizing:border-box; }
+
+html, body{
+    height:100%;
+    margin:0;
+}
+
+body{
+    font-family: 'Trebuchet MS', 'Segoe UI', Verdana, sans-serif;
+    background-color:var(--cream);
+    background-image:
+        radial-gradient(circle at 1px 1px, rgba(60,36,21,0.06) 1px, transparent 0);
+    background-size: 22px 22px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+    min-height:100%;
+}
+
+.card{
+    background:#fff;
+    max-width: 400px;
+    width:100%;
+    border-radius: 1.75rem;
+    box-shadow: 0 30px 60px -20px rgba(60,36,21,0.35);
+    text-align:center;
+    overflow:hidden;
+    animation: cardIn 0.5s cubic-bezier(.2,.8,.2,1) both;
+}
+
+@keyframes cardIn{
+    from{ opacity:0; transform: translateY(14px) scale(0.98); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+}
+
+.header-wrap{
+    background: linear-gradient(135deg, var(--terracotta) 0%, var(--terracotta-dark) 60%, var(--espresso) 130%);
+    position:relative;
+    padding: 38px 24px 52px;
+    overflow:hidden;
+}
+
+.bean{
+    position:absolute;
+    width:16px; height:22px;
+    border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
+    background:#fff;
+    opacity:0.14;
+}
+.bean::after{
+    content:"";
+    position:absolute;
+    top:2px; bottom:2px; left:50%;
+    width:1.5px;
+    background: rgba(0,0,0,0.35);
+    transform: translateX(-50%);
+}
+.bean.b1{ top:14px; left:12%; transform:rotate(-25deg) scale(1.1); }
+.bean.b2{ top:70%; left:78%; transform:rotate(15deg) scale(0.85); }
+.bean.b3{ top:10%; left:82%; transform:rotate(40deg) scale(0.7); }
+
+.cup-badge{
+    width:6rem; height:6rem;
+    background:#fff;
+    border-radius:9999px;
+    display:flex; align-items:center; justify-content:center;
+    margin: 0 auto;
+    box-shadow: 0 14px 30px -8px rgba(0,0,0,0.35), 0 0 0 6px rgba(255,255,255,0.18);
+    position:relative;
+}
+
+.signal-dot{
+    position:absolute;
+    right:-2px; bottom:2px;
+    width:1.6rem; height:1.6rem;
+    border-radius:9999px;
+    background: var(--err);
+    border: 3px solid #fff;
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.3s ease;
+}
+.signal-dot.online{ background: var(--ok); }
+
+.steam{
+    position:absolute;
+    top:-20px;
+    width:4px;
+    border-radius:4px;
+    background: rgba(255,255,255,0.85);
+    animation: steamRise 2.6s ease-in-out infinite;
+}
+.steam.s1{ left:38%; height:13px; animation-delay:0s; }
+.steam.s2{ left:50%; height:17px; animation-delay:0.5s; }
+.steam.s3{ left:62%; height:13px; animation-delay:1s; }
+@keyframes steamRise{
+    0%   { transform: translateY(6px) scaleY(0.6); opacity:0; }
+    35%  { opacity:0.9; }
+    100% { transform: translateY(-16px) scaleY(1.15); opacity:0; }
+}
+
+.body-content{
+    padding: 6px 30px 32px;
+    margin-top: -20px;
+}
+
+h1{
+    color: var(--espresso);
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+}
+
+p{
+    color: #7a6a5d;
+    font-size: 0.92rem;
+    line-height: 1.6;
+    margin: 0 0 22px;
+}
+
+.btn-retry{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap: 9px;
+    width:100%;
+    padding: 13px 20px;
+    background: var(--terracotta);
+    color:#fff;
+    border:none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight:600;
+    font-family: inherit;
+    cursor:pointer;
+    transition: background 0.2s ease, transform 0.1s ease, opacity 0.2s ease;
+}
+.btn-retry:hover{ background: var(--terracotta-dark); }
+.btn-retry:active{ transform: scale(0.98); }
+.btn-retry:focus-visible{
+    outline: 3px solid var(--gold);
+    outline-offset: 2px;
+}
+.btn-retry:disabled{
+    opacity: 0.75;
+    cursor:default;
+    transform:none;
+}
+
+.btn-retry .spinner{
+    width:16px; height:16px;
+    border-radius:50%;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color:#fff;
+    animation: spin 0.7s linear infinite;
+    display:none;
+}
+.btn-retry.loading .spinner{ display:inline-block; }
+.btn-retry.loading .btn-label{ display:none; }
+
+@keyframes spin{ to{ transform: rotate(360deg); } }
+
+.status-row{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    margin-top: 18px;
+    font-size: 0.8rem;
+    color: #9a8b7f;
+    font-weight:600;
+}
+.dot{
+    width:8px; height:8px;
+    border-radius:9999px;
+    background: var(--err);
+    animation: pulse 1.8s ease-in-out infinite;
+    transition: background 0.3s ease;
+}
+.dot.online{
+    background: var(--ok);
+    animation: none;
+}
+@keyframes pulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:0.35; }
+}
+
+.shake{
+    animation: shakeErr 0.4s ease;
+}
+@keyframes shakeErr{
+    0%,100%{ transform: translateX(0); }
+    25%{ transform: translateX(-6px); }
+    75%{ transform: translateX(6px); }
+}
+
+@media (prefers-reduced-motion: reduce){
+    .card, .steam, .dot, .spinner, .shake{ animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+    <div class="header-wrap">
+        <div class="bean b1"></div>
+        <div class="bean b2"></div>
+        <div class="bean b3"></div>
+
+        <div class="cup-badge">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="none">
+                <path d="M3 8H17V15C17 17.7614 14.7614 20 12 20H8C5.23858 20 3 17.7614 3 15V8Z" stroke="#3C2415" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M17 9H19C20.1046 9 21 9.89543 21 11C21 12.1046 20.1046 13 19 13H17" stroke="#3C2415" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 22H18" stroke="#3C2415" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <div class="signal-dot" id="signalDot">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" id="signalIcon">
+                    <path d="M2 8.5C7 4 17 4 22 8.5M5.5 12C9 9 15 9 18.5 12M9 15.5C10.5 14.3 13.5 14.3 15 15.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+                    <path d="M2 2L22 22" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+            </div>
+        </div>
+
+        <div class="steam s1"></div>
+        <div class="steam s2"></div>
+        <div class="steam s3"></div>
+    </div>
+
+    <div class="body-content">
+        <h1 id="title">Kamu Sedang Offline</h1>
+        <p id="desc">Sepertinya koneksi internet terputus. Periksa jaringan Wi-Fi atau data seluler kamu, lalu coba lagi.</p>
+
+        <button class="btn-retry" id="retryBtn">
+            <span class="btn-label" id="btnLabel">Coba Lagi</span>
+            <span class="spinner" aria-hidden="true"></span>
+        </button>
+
+        <div class="status-row" role="status" aria-live="polite">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusText">Tidak ada koneksi</span>
+        </div>
+    </div>
+</div>
+
+<script>
+const card = document.getElementById('card');
+const retryBtn = document.getElementById('retryBtn');
+const btnLabel = document.getElementById('btnLabel');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const signalDot = document.getElementById('signalDot');
+const title = document.getElementById('title');
+const desc = document.getElementById('desc');
+
+function setOnlineUI(){
+    statusDot.classList.add('online');
+    signalDot.classList.add('online');
+    statusText.textContent = 'Koneksi kembali';
+    title.textContent = 'Terhubung Kembali!';
+    desc.textContent = 'Koneksi internet sudah pulih. Memuat ulang halaman...';
+    btnLabel.textContent = 'Memuat...';
+    retryBtn.classList.add('loading');
+    retryBtn.disabled = true;
+    setTimeout(() => window.location.reload(), 900);
+}
+
+function setOfflineUI(){
+    statusDot.classList.remove('online');
+    signalDot.classList.remove('online');
+    statusText.textContent = 'Tidak ada koneksi';
+}
+
+retryBtn.addEventListener('click', () => {
+    if (retryBtn.disabled) return;
+
+    if (navigator.onLine) {
+        setOnlineUI();
+        return;
+    }
+
+    retryBtn.classList.add('loading');
+    retryBtn.disabled = true;
+
+    setTimeout(() => {
+        if (navigator.onLine) {
+            setOnlineUI();
+        } else {
+            retryBtn.classList.remove('loading');
+            retryBtn.disabled = false;
+            card.classList.remove('shake');
+            void card.offsetWidth;
+            card.classList.add('shake');
+        }
+    }, 700);
+});
+
+window.addEventListener('online', setOnlineUI);
+window.addEventListener('offline', setOfflineUI);
+
+if (navigator.onLine) {
+    setOnlineUI();
+}
+</script>
+
+</body>
+</html>

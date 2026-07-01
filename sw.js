@@ -18,6 +18,13 @@ self.addEventListener("install", event => {
 self.addEventListener("fetch", event => {
   event.respondWith(
     fetch(event.request)
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        caches.match(event.request).then(cached => {
+          if (cached) return cached;
+          if (event.request.mode === "navigate") {
+            return caches.match("/pojok_cafe/offline/offline.html");
+          }
+        })
+      )
   );
 });
